@@ -58,3 +58,7 @@ def refresh_all():
     """Feature 3: ping every known device, then return fresh statistics."""
     run_ping_many([device.ip for device in store.get_devices(netinfo.get_network_info().cidr)])
     return stats()
+
+def history(ip, limit=10):
+    """Feature 3: the most recent ping tests of one host, oldest first, for the history chart."""
+    return store.get_pings(ip)[-limit:]

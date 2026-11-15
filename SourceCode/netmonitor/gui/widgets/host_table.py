@@ -42,8 +42,8 @@ class HostTable(ctk.CTkFrame):
             try:
                 return (0, int(ipaddress.ip_address(value)))   # 192.168.1.9 before 192.168.1.10
             except ValueError:
-                return (1, value.lower())
-        reverse = self._sorted_by == key
-        self._sorted_by = None if reverse else key
-        for index, row_id in enumerate(sorted(self.tree.get_children(), key=order, reverse=reverse)):
-            self.tree.move(row_id, "", index)
+                pass
+            try:
+                return (0, float(value.split()[0].rstrip("%")))    # "12.4 ms" and "25%" sort as numbers
+            except (ValueError, IndexError):
+                return (1, value.lower())                          # text, and "No data", go last

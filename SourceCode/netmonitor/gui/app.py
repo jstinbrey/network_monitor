@@ -5,8 +5,9 @@ from netmonitor import config
 from netmonitor.gui import theme, worker
 from netmonitor.gui.views.devices import DevicesView
 from netmonitor.gui.views.ping import PingView
+from netmonitor.gui.views.statistics import StatisticsView
 
-VIEWS = [("Devices", DevicesView), ("Ping", PingView)]   # sidebar order; later views are added here
+VIEWS = [("Devices", DevicesView), ("Ping", PingView), ("Statistics", StatisticsView)]   # sidebar order; later views are added here
 
 class App(ctk.CTk):
     def __init__(self):

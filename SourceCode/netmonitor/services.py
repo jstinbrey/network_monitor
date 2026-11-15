@@ -72,3 +72,7 @@ def generate_report(fmt):
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
         "pings": [ping for device in devices for ping in store.get_pings(device.ip)[-1:]],   # latest per device
     }, fmt)
+
+def reports():
+    """Feature 4: the generated report files, newest first."""
+    return sorted(config.OUTPUT_DIR.glob("report_*.*"), reverse=True)

@@ -6,3 +6,4 @@ dist/
 data/*.db
 output/*
 !output/.gitkeep
+.pytest_tmp/

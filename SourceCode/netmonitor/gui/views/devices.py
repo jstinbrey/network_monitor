@@ -25,11 +25,25 @@ class DevicesView(ctk.CTkFrame):
         self.progress.pack(side="left", padx=12)
         self.status = ctk.CTkLabel(bar, text="No devices yet. Run a scan.", text_color=theme.MUTED)
         self.status.pack(side="left")
+        ctk.CTkButton(bar, text="Ping selected", command=self.ping_selected).pack(side="right")
 
         self.table = HostTable(self, [("ip", "IP Address", 140), ("hostname", "Hostname", 260),
                                       ("mac", "MAC Address", 170), ("status", "Status", 210),
                                       ("tags", "Tags", 120)])
         self.table.pack(fill="both", expand=True, padx=theme.PAD, pady=(0, theme.PAD))
+        self.table.tree.bind("<Double-1>", self._ping_row)
+
+    def ping_selected(self):
+        """Feature 2: ping every selected device and show the results in the Ping view."""
+        if self.table.selected():
+            self.app.show("Ping", ips=self.table.selected())
+        else:
+            self.status.configure(text="Select one or more devices first (Ctrl+click for several).")
+
+    def _ping_row(self, event):
+        row = self.table.tree.identify_row(event.y)   # empty when the heading was double-clicked
+        if row:
+            self.app.show("Ping", ip=row)
 
     def on_show(self):
         """Called each time this view is opened: refresh the network details."""

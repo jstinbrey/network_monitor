@@ -3,6 +3,7 @@ from tkinter import ttk
 
 GREEN, AMBER, RED, BLUE, MUTED = "#2fa572", "#e0a030", "#d9534f", "#1f6aa5", "#9aa0a6"
 TAG_COLORS = {"good": GREEN, "warn": AMBER, "bad": RED}   # row colours in tables
+STATUS_TAGS = {"online": "good", "degraded": "warn", "no-icmp": "warn", "offline": "bad"}
 PAD = 16
 TITLE_FONT = ("Segoe UI", 22, "bold")
 

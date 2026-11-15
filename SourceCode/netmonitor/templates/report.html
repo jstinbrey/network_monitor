@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Network Monitoring Report</title>
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; margin: 32px; color: #1c1c1c; }
+  h1 { margin-bottom: 4px; }
+  h2 { margin-top: 28px; border-bottom: 2px solid #1f538d; padding-bottom: 4px; color: #1f538d; }
+  .meta { color: #555; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  th { background: #1f538d; color: white; text-align: left; }
+  th, td { padding: 6px 10px; border: 1px solid #c8c8c8; }
+  tr:nth-child(even) td { background: #f3f6fa; }
+  .cards { display: flex; gap: 12px; flex-wrap: wrap; }
+  .card { border: 1px solid #c8c8c8; border-radius: 6px; padding: 10px 16px; min-width: 130px; }
+  .card b { display: block; font-size: 22px; }
+</style>
+</head>
+<body>
+{% macro ms(value) %}{{ "No data" if value is none else value ~ " ms" }}{% endmacro %}
+
+<h1>Network Monitoring Report</h1>
+<p class="meta">
+  Generated: {{ generated_at }}<br>
+  Host: {{ info.hostname }} ({{ info.local_ip }}) &nbsp;|&nbsp;
+  Network: {{ info.cidr }} ({{ info.first_host }} to {{ info.last_host }}) &nbsp;|&nbsp;
+  Gateway: {{ info.gateway or "none" }}
+</p>
+
+<h2>Devices Detected ({{ devices | length }})</h2>
+{% if devices %}
+<table>
+  <tr><th>IP Address</th><th>Hostname</th><th>MAC Address</th><th>Status</th><th>Last Seen</th></tr>
+  {% for d in devices %}
+  <tr><td>{{ d.ip }}</td><td>{{ d.hostname }}</td><td>{{ d.mac or "-" }}</td>
+      <td>{{ "Online" if d.replied_icmp else "No ICMP reply (host up)" }}</td><td>{{ d.last_seen }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No devices found. Run a scan first.</p>
+{% endif %}
+
+<h2>Ping Results</h2>
+{% if pings %}
+<table>
+  <tr><th>IP Address</th><th>Sent</th><th>Received</th><th>Packet Loss</th>
+      <th>Minimum</th><th>Average</th><th>Maximum</th><th>Status</th><th>Tested At</th></tr>
+  {% for p in pings %}
+  <tr><td>{{ p.ip }}</td><td>{{ p.sent }}</td><td>{{ p.received }}</td><td>{{ p.loss_pct }}%</td>
+      <td>{{ ms(p.min_ms) }}</td><td>{{ ms(p.avg_ms) }}</td><td>{{ ms(p.max_ms) }}</td>
+      <td>{{ labels[p.status] }}</td><td>{{ p.timestamp }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No ping tests have been run yet.</p>
+{% endif %}
+
+<h2>Network Performance Summary</h2>
+<div class="cards">
+  <div class="card">Devices<b>{{ summary.devices }}</b></div>
+  <div class="card">Reachable<b>{{ summary.reachable }}</b></div>
+  <div class="card">Unreachable<b>{{ summary.unreachable }}</b></div>
+  <div class="card">Average latency<b>{{ ms(summary.network_avg_ms) }}</b></div>
+  <div class="card">Health score<b>{{ summary.health_score }} / 100</b></div>
+</div>
+<p>Fastest host: {{ summary.best_host or "No data" }} &nbsp;|&nbsp; Slowest host: {{ summary.worst_host or "No data" }}</p>
+{% if stats %}
+<table>
+  <tr><th>Hostname</th><th>IP Address</th><th>Average Latency</th><th>Maximum Latency</th>
+      <th>Packet Loss</th><th>Jitter</th><th>Status</th></tr>
+  {% for s in stats %}
+  <tr><td>{{ s.hostname }}</td><td>{{ s.ip }}</td><td>{{ ms(s.avg_ms) }}</td><td>{{ ms(s.max_ms) }}</td>
+      <td>{{ "No data" if s.loss_pct is none else s.loss_pct ~ "%" }}</td><td>{{ ms(s.jitter_ms) }}</td>
+      <td>{{ labels[s.status] }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+</body>
+</html>

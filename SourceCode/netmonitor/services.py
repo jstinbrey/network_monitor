@@ -6,7 +6,7 @@ gui.worker.run_async and never directly.
 import ipaddress
 
 from netmonitor import config, models, store
-from netmonitor.core import discovery, netinfo, pinger, statistics
+from netmonitor.core import discovery, netinfo, pinger, report_builder, statistics
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
@@ -62,3 +62,13 @@ def refresh_all():
 def history(ip, limit=10):
     """Feature 3: the most recent ping tests of one host, oldest first, for the history chart."""
     return store.get_pings(ip)[-limit:]
+
+def generate_report(fmt):
+    """Feature 4: write a report of the current network state; returns the file's path."""
+    info = netinfo.get_network_info()
+    devices = store.get_devices(info.cidr)
+    host_stats = stats()
+    return report_builder.build({
+        "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
+        "pings": [ping for device in devices for ping in store.get_pings(device.ip)[-1:]],   # latest per device
+    }, fmt)

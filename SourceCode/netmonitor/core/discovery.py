@@ -58,14 +58,22 @@ def sweep(targets: list[str], on_progress=None) -> set[str]:
     return alive
 
 
+def _lookup(ip: str) -> str:
+    """Reverse DNS for one IP. Windows echoes the IP back when the host has no name."""
+    try:
+        name = socket.gethostbyaddr(ip)[0]
+    except OSError:
+        return "Unknown"
+    return "Unknown" if name == ip else name
+
+
 def resolve_hostnames(ips: list[str]) -> dict[str, str]:
     """Reverse DNS for each IP; "Unknown" when there is no name or it is too slow."""
     pool = ThreadPoolExecutor(max_workers=32)
-    futures = {ip: pool.submit(socket.gethostbyaddr, ip) for ip in ips}
+    futures = {ip: pool.submit(_lookup, ip) for ip in ips}
     wait(futures.values(), timeout=config.HOSTNAME_TIMEOUT_S)
     pool.shutdown(wait=False, cancel_futures=True)  # gethostbyaddr has no timeout of its own
-    return {ip: f.result()[0] if f.done() and not f.cancelled() and not f.exception() else "Unknown"
-            for ip, f in futures.items()}
+    return {ip: f.result() if f.done() and not f.cancelled() else "Unknown" for ip, f in futures.items()}
 
 
 def discover(info: NetworkInfo, on_progress=None) -> list[Device]:

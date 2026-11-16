@@ -1,7 +1,7 @@
 NETMONITOR
 Network Monitoring and Performance Analysis System
 
-Author : Justin Jones Brey
+
 Course : CCS 234 - Communications and Networking
 School : West Visayas State University, CICT
 Date   : December 2026

@@ -8,9 +8,11 @@ from netmonitor.gui.views.ping import PingView
 from netmonitor.gui.views.reports import ReportsView
 from netmonitor.gui.views.security import SecurityView
 from netmonitor.gui.views.statistics import StatisticsView
+from netmonitor.gui.views.dashboard import DashboardView
 
-VIEWS = [("Devices", DevicesView), ("Ping", PingView), ("Statistics", StatisticsView), ("Reports", ReportsView),
-         ("Security", SecurityView)]   # sidebar order; later views are added here
+VIEWS = [("Dashboard", DashboardView), ("Devices", DevicesView), ("Ping", PingView),
+         ("Statistics", StatisticsView), ("Reports", ReportsView),
+         ("Security", SecurityView)]   # sidebar order; the first one opens at startup
 
 class App(ctk.CTk):
     def __init__(self):

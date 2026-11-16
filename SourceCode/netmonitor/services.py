@@ -45,6 +45,10 @@ def _devices():
     """Every device stored for the network this PC is on now."""
     return store.get_devices(netinfo.get_network_info().cidr)
 
+def devices():
+    """Feature 1: the devices stored for this network, shown when the Devices view opens."""
+    return _devices()
+
 
 def _stats(devices):
     # shortcut: ping history is keyed by IP only, so two networks that reuse the same

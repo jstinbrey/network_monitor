@@ -57,6 +57,12 @@ class DevicesView(ctk.CTkFrame):
         run_async(services.scan, lambda done, total: post(self._show_progress, (done, total)),
                   on_done=self._show_devices, on_error=self._show_error)
 
+    def on_show(self):
+        """Called each time this view is opened: refresh the network details."""
+        run_async(services.network_info, on_done=self._show_info, on_error=self._show_error)
+        if self.scan_button.cget("state") == "normal":   # not while a scan is running
+            run_async(services.devices, on_done=self._show_devices, on_error=self._show_error)
+
     def _show_info(self, info):
         notes = ""
         if info.mask_assumed:
@@ -77,10 +83,12 @@ class DevicesView(ctk.CTkFrame):
         self.table.set_rows([{
             "ip": d.ip, "hostname": d.hostname, "mac": d.mac or "-",
             "status": "Online" if d.replied_icmp else "No ICMP reply (host up)",
-            "tags": ", ".join(tag for tag, on in (("This PC", d.is_self), ("Gateway", d.is_gateway)) if on),
+            "tags": ", ".join(tag for tag, on in (("This PC", d.is_self), ("Gateway", d.is_gateway),
+                                                  ("New", not d.known)) if on),
             "tag": "good" if d.replied_icmp else "warn",
         } for d in devices])
-        self.status.configure(text=f"{len(devices)} devices found", text_color=theme.MUTED)
+        self.status.configure(text=f"{len(devices)} devices found" if devices else "No devices yet. Run a scan.",
+                              text_color=theme.MUTED)
         self.scan_button.configure(state="normal")
 
     def _show_error(self, error):

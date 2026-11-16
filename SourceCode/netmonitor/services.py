@@ -91,3 +91,16 @@ def mark_known(ip):
         if device.ip == ip and device.mac:
             store.mark_known(device.mac, network)
     return recommendations()
+
+def dashboard():
+    """Dashboard: the network summary, per-host statistics, and recommendations in one call."""
+    host_stats = stats()
+    devices = store.get_devices(netinfo.get_network_info().cidr)
+    return statistics.summary(host_stats), host_stats, advisor.recommend(devices, host_stats)
+
+
+def scan_and_refresh(on_progress=None):
+    """Dashboard button: scan for devices, ping every one, then return fresh dashboard data."""
+    scan(on_progress)
+    refresh_all()
+    return dashboard()

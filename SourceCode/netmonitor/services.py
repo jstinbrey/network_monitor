@@ -41,47 +41,61 @@ def run_ping_many(ips, count=config.PING_COUNT):
     return _record(pinger.ping_many(ips, count))
 
 
-def stats():
-    """Feature 3: one row of statistics per device known on this network."""
-    devices = store.get_devices(netinfo.get_network_info().cidr)
+def _devices():
+    """Every device stored for the network this PC is on now."""
+    return store.get_devices(netinfo.get_network_info().cidr)
+
+
+def _stats(devices):
     # shortcut: ping history is keyed by IP only, so two networks that reuse the same
     # addresses share history; add a network column to pings if that becomes a problem.
     return [statistics.host_stats(device, store.get_pings(device.ip)) for device in devices]
 
 
-def summary():
-    """Feature 3: network-wide totals and health score."""
-    return statistics.summary(stats())
+def stats():
+    """Feature 3: one row of statistics per device known on this network."""
+    return _stats(_devices())
 
 
 def refresh_all():
     """Feature 3: ping every known device, then return fresh statistics."""
-    run_ping_many([device.ip for device in store.get_devices(netinfo.get_network_info().cidr)])
-    return stats()
+    devices = _devices()
+    run_ping_many([device.ip for device in devices])
+    return _stats(devices)
+
 
 def history(ip, limit=10):
     """Feature 3: the most recent ping tests of one host, oldest first, for the history chart."""
     return store.get_pings(ip)[-limit:]
 
+
 def generate_report(fmt):
     """Feature 4: write a report of the current network state; returns the file's path."""
     info = netinfo.get_network_info()
     devices = store.get_devices(info.cidr)
-    host_stats = stats()
+    host_stats = _stats(devices)
     return report_builder.build({
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
         "recommendations": advisor.recommend(devices, host_stats),
         "pings": [ping for device in devices for ping in store.get_pings(device.ip)[-1:]],   # latest per device
     }, fmt)
 
+
 def reports():
     """Feature 4: the generated report files, newest first."""
     return sorted(config.OUTPUT_DIR.glob("report_*.*"), reverse=True)
 
 
+def dashboard():
+    """Dashboard: the network summary, per-host statistics, and recommendations in one call."""
+    devices = _devices()
+    host_stats = _stats(devices)
+    return statistics.summary(host_stats), host_stats, advisor.recommend(devices, host_stats)
+
+
 def recommendations():
     """Feature 5: security and connectivity advice for the current network, most severe first."""
-    return advisor.recommend(store.get_devices(netinfo.get_network_info().cidr), stats())
+    return dashboard()[2]
 
 
 def mark_known(ip):
@@ -91,12 +105,6 @@ def mark_known(ip):
         if device.ip == ip and device.mac:
             store.mark_known(device.mac, network)
     return recommendations()
-
-def dashboard():
-    """Dashboard: the network summary, per-host statistics, and recommendations in one call."""
-    host_stats = stats()
-    devices = store.get_devices(netinfo.get_network_info().cidr)
-    return statistics.summary(host_stats), host_stats, advisor.recommend(devices, host_stats)
 
 
 def scan_and_refresh(on_progress=None):

@@ -25,7 +25,8 @@ def recommend(devices: list[Device], stats: list[HostStats]) -> list[Recommendat
     for d in devices:
         s = by_ip.get(d.ip)
         name = f"{d.hostname} ({d.ip})"
-        measured = s and f"Packet loss {s.loss_pct:g}%, average latency {s.avg_ms:g} ms." if s and s.avg_ms is not None else ""
+        has_replies = s is not None and s.avg_ms is not None
+        measured = f"Packet loss {s.loss_pct:g}%, average latency {s.avg_ms:g} ms." if has_replies else ""
 
         # Unreachable hosts and weak connectivity: one finding per host, the worst that applies.
         if s and s.status == models.OFFLINE and d.is_gateway:

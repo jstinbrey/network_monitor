@@ -1,13 +1,14 @@
 """Runs blocking service calls in a thread and hands the result back to the UI thread.
 
-Tkinter widgets may  only be touched from the main thread. Worker threads therefore never call a widget; they put (callback, value) on a queue, and 
+Tkinter widgets may only be touched from the main thread. Worker threads
+therefore never call a widget; they put (callback, value) on a queue, and
 the main thread drains that queue every few milliseconds.
 """
-
 import queue
 import threading
 
 _results = queue.Queue()
+
 
 def run_async(fn, *args, on_done=None, on_error=None):
     """Run fn(*args) in a thread, then call on_done(result) or on_error(exception) on the UI thread."""

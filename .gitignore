@@ -1,0 +1,18 @@
+# Python: virtual environment, caches, build output
+.venv/
+__pycache__/
+.pytest_cache/
+.pytest_tmp/
+build/
+dist/
+
+# Created by the application: the SQLite history and the generated reports
+SourceCode/data/*.db
+SourceCode/output/*
+!SourceCode/output/.gitkeep
+
+# The demonstration video is too large for git; it goes in the zip, not the repository
+VideoDemo/*
+
+# Word lock files, created while a document is open
+~$*

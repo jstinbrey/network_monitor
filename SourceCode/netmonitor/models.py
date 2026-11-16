@@ -102,12 +102,3 @@ class Recommendation:
     title: str
     detail: str
     action: str
-
-
-@dataclass
-class ReportMeta:
-    """Feature 4: a generated report file."""
-    id: int
-    created_at: str
-    format: str                  # "html", "csv", or "pdf"
-    path: str

@@ -7,6 +7,18 @@ import customtkinter as ctk
 from netmonitor.gui import theme
 
 
+def sort_key(value: str):
+    """Order for one cell: IP addresses and numbers by value, then text; "No data" goes last."""
+    try:
+        return (0, int(ipaddress.ip_address(value)))        # 192.168.1.9 before 192.168.1.10
+    except ValueError:
+        pass
+    try:
+        return (0, float(value.split()[0].rstrip("%")))     # "12.4 ms" and "25%" sort as numbers
+    except (ValueError, IndexError):
+        return (1, value.lower())
+
+
 class HostTable(ctk.CTkFrame):
     def __init__(self, parent, columns):
         """columns: list of (key, title, width). One column must have the key "ip"."""
@@ -37,13 +49,8 @@ class HostTable(ctk.CTkFrame):
 
     def _sort(self, key):
         """Sort by a column; clicking the same heading again reverses the order."""
-        def order(row_id):
-            value = self.tree.set(row_id, key)
-            try:
-                return (0, int(ipaddress.ip_address(value)))   # 192.168.1.9 before 192.168.1.10
-            except ValueError:
-                pass
-            try:
-                return (0, float(value.split()[0].rstrip("%")))    # "12.4 ms" and "25%" sort as numbers
-            except (ValueError, IndexError):
-                return (1, value.lower())                          # text, and "No data", go last
+        reverse = self._sorted_by == key
+        self._sorted_by = None if reverse else key
+        rows = sorted(self.tree.get_children(), key=lambda row: sort_key(self.tree.set(row, key)), reverse=reverse)
+        for index, row in enumerate(rows):
+            self.tree.move(row, "", index)

@@ -15,7 +15,7 @@ class ReportsView(ctk.CTkFrame):
         ctk.CTkLabel(self, text="Reports", font=theme.TITLE_FONT).pack(anchor="w", padx=theme.PAD, pady=(theme.PAD, 8))
         ctk.CTkLabel(self, anchor="w", text_color=theme.MUTED,
                      text="A report contains the date and time, the devices detected, the latest ping results, "
-                          "and the network performance summary.").pack(fill="x", padx=theme.PAD)
+                          "the network performance summary, and the security recommendations.").pack(fill="x", padx=theme.PAD)
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD, pady=12)

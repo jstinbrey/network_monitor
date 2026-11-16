@@ -77,5 +77,15 @@
 </table>
 {% endif %}
 
+{% if recommendations %}
+<h2>Security Recommendations</h2>
+<table>
+  <tr><th>Severity</th><th>Finding</th><th>Details</th><th>Recommended Action</th></tr>
+  {% for r in recommendations %}
+  <tr><td>{{ r.severity | capitalize }}</td><td>{{ r.title }}</td><td>{{ r.detail }}</td><td>{{ r.action }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
 </body>
 </html>

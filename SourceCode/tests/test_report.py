@@ -3,7 +3,7 @@ import csv
 
 import pytest
 
-from netmonitor.core import pinger, report_builder, statistics
+from netmonitor.core import advisor, pinger, report_builder, statistics
 from netmonitor.models import Device, NetworkInfo
 
 INFO = NetworkInfo("my-pc", "192.168.1.37", "255.255.255.0", "192.168.1.0/24",
@@ -14,7 +14,7 @@ def report_data(devices):
     pings = [pinger.build_result(d.ip, 4, [3.0, 5.0, 4.0]) for d in devices]
     stats = [statistics.host_stats(d, [p]) for d, p in zip(devices, pings)]
     return {"info": INFO, "devices": devices, "pings": pings, "stats": stats,
-            "summary": statistics.summary(stats)}
+            "summary": statistics.summary(stats), "recommendations": advisor.recommend(devices, stats)}
 
 
 DEVICES = [Device(ip="192.168.1.1", hostname="Gateway", mac="aa-bb", replied_icmp=True),
@@ -29,6 +29,7 @@ def test_html_has_the_four_required_parts(tmp_path):
     assert "Devices Detected (2)" in html and "192.168.1.20" in html       # devices detected
     assert "Ping Results" in html and "25.0%" in html                      # ping results
     assert "Network Performance Summary" in html and "/ 100" in html       # performance summary
+    assert "Security Recommendations" in html and "Weak connectivity to" in html   # Feature 5 advice
 
 
 def test_html_escapes_hostnames(tmp_path):

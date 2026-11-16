@@ -15,7 +15,8 @@ def build(data: dict, fmt: str, folder: Path = None) -> Path:
     """Write one report file and return its path.
 
     data holds: info (NetworkInfo), devices, pings (latest PingResult per
-    device), stats (HostStats per device), and summary (NetworkSummary).
+    device), stats (HostStats per device), summary (NetworkSummary), and
+    optionally recommendations (Feature 5).
     """
     now = datetime.now()
     data = data | {"generated_at": now.strftime("%Y-%m-%d %H:%M:%S"), "labels": STATUS_LABELS}

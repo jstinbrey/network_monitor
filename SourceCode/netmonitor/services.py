@@ -6,7 +6,7 @@ gui.worker.run_async and never directly.
 import ipaddress
 
 from netmonitor import config, models, store
-from netmonitor.core import discovery, netinfo, pinger, report_builder, statistics
+from netmonitor.core import advisor, discovery, netinfo, pinger, report_builder, statistics
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
@@ -70,9 +70,24 @@ def generate_report(fmt):
     host_stats = stats()
     return report_builder.build({
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
+        "recommendations": advisor.recommend(devices, host_stats),
         "pings": [ping for device in devices for ping in store.get_pings(device.ip)[-1:]],   # latest per device
     }, fmt)
 
 def reports():
     """Feature 4: the generated report files, newest first."""
     return sorted(config.OUTPUT_DIR.glob("report_*.*"), reverse=True)
+
+
+def recommendations():
+    """Feature 5: security and connectivity advice for the current network, most severe first."""
+    return advisor.recommend(store.get_devices(netinfo.get_network_info().cidr), stats())
+
+
+def mark_known(ip):
+    """Feature 5: the user confirms a new device belongs; returns the fresh recommendations."""
+    network = netinfo.get_network_info().cidr
+    for device in store.get_devices(network):
+        if device.ip == ip and device.mac:
+            store.mark_known(device.mac, network)
+    return recommendations()

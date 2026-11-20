@@ -12,6 +12,10 @@ NO_ICMP = "no-icmp"      # no ping reply but the host answers ARP: it is up
 OFFLINE = "offline"      # no ping reply and no ARP entry
 NO_DATA = "no-data"      # the host has never been pinged
 
+# --- Account roles ----------------------------------------------------------
+ADMIN = "admin"          # can scan, manage accounts and change settings
+USER = "user"            # can look at results and run ping tests
+
 STATUS_LABELS = {
     ONLINE: "Online",
     DEGRADED: "Degraded",
@@ -19,6 +23,17 @@ STATUS_LABELS = {
     OFFLINE: "Offline",
     NO_DATA: "No data",
 }
+
+
+@dataclass
+class User:
+    """A signed-in account and what it may do."""
+    username: str
+    role: str                    # ADMIN or USER
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == ADMIN
 
 
 @dataclass

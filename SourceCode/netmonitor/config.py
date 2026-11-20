@@ -39,6 +39,12 @@ COMMON_PORTS = {
 }
 RISKY_PORTS = {21, 23, 445, 3389}   # unencrypted or commonly attacked services
 
+# --- Accounts and roles ---------------------------------------------------
+AUTH_ITERATIONS = 600_000   # PBKDF2-SHA256 rounds (OWASP guidance); about 0.2 s on this PC
+PASSWORD_MIN_LEN = 8
+LOGIN_MAX_FAILURES = 5      # wrong passwords in a row before sign-in pauses
+LOGIN_LOCK_S = 30
+
 # --- Window ---------------------------------------------------------------
 APP_TITLE = "NetMonitor"
 WINDOW_SIZE = "1180x720"

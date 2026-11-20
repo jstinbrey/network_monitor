@@ -8,7 +8,7 @@ import math
 import time
 
 from netmonitor import config, models, store
-from netmonitor.core import advisor, auth, discovery, netinfo, pinger, report_builder, statistics
+from netmonitor.core import advisor, auth, discovery, netinfo, pinger, report_builder, statistics, vendor
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
@@ -30,10 +30,17 @@ def _network_id(info, macs=None) -> str:
     return f"{info.cidr} via {macs.get(info.gateway, 'no gateway')}"
 
 
+def _with_vendor(devices):
+    """Fill in each device's maker. Done here, in a worker thread, because the first lookup reads the registry."""
+    for device in devices:
+        device.vendor = vendor.vendor(device.mac)
+    return devices
+
+
 def _current():
     """(network id, stored devices) for the network this PC is on now."""
     network = _network_id(netinfo.get_network_info())
-    return network, store.get_devices(network)
+    return network, _with_vendor(store.get_devices(network))
 
 
 def scan(on_progress=None):
@@ -43,7 +50,7 @@ def scan(on_progress=None):
     devices = discovery.discover(info, on_progress)
     # The scan has just read the ARP table, so the gateway's MAC is already in the results.
     store.save_scan(devices, _network_id(info, {d.ip: d.mac for d in devices if d.mac}))
-    return devices
+    return _with_vendor(devices)
 
 
 def _record(results):
@@ -115,7 +122,7 @@ def generate_report(fmt):
     """Feature 4: write a report of the current network state; returns the file's path."""
     info = netinfo.get_network_info()
     network = _network_id(info)
-    devices = store.get_devices(network)
+    devices = _with_vendor(store.get_devices(network))
     host_stats = _stats(devices, network)
     return report_builder.build({
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),

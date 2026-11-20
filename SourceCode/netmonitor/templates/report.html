@@ -31,9 +31,9 @@
 <h2>Devices Detected ({{ devices | length }})</h2>
 {% if devices %}
 <table>
-  <tr><th>IP Address</th><th>Hostname</th><th>MAC Address</th><th>Status</th><th>Last Seen</th></tr>
+  <tr><th>IP Address</th><th>Hostname</th><th>MAC Address</th><th>Vendor</th><th>Status</th><th>Last Seen</th></tr>
   {% for d in devices %}
-  <tr><td>{{ d.ip }}</td><td>{{ d.hostname }}</td><td>{{ d.mac or "-" }}</td>
+  <tr><td>{{ d.ip }}</td><td>{{ d.hostname }}</td><td>{{ d.mac or "-" }}</td><td>{{ d.vendor }}</td>
       <td>{{ "Online" if d.replied_icmp else "No ICMP reply (host up)" }}</td><td>{{ d.last_seen }}</td></tr>
   {% endfor %}
 </table>

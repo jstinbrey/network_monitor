@@ -31,9 +31,9 @@ class DevicesView(ctk.CTkFrame):
         self.status.pack(side="left")
         ctk.CTkButton(bar, text="Ping selected", command=self.ping_selected).pack(side="right")
 
-        self.table = HostTable(self, [("ip", "IP Address", 140), ("hostname", "Hostname", 260),
-                                      ("mac", "MAC Address", 170), ("status", "Status", 210),
-                                      ("tags", "Tags", 120)])
+        self.table = HostTable(self, [("ip", "IP Address", 125), ("hostname", "Hostname", 190),
+                                      ("mac", "MAC Address", 145), ("vendor", "Vendor", 190),
+                                      ("status", "Status", 175), ("tags", "Tags", 105)])
         self.table.pack(fill="both", expand=True, padx=theme.PAD, pady=(0, theme.PAD))
         self.table.on_open(app.open_device)
 
@@ -76,7 +76,7 @@ class DevicesView(ctk.CTkFrame):
 
     def _show_devices(self, devices):
         self.table.set_rows([{
-            "ip": d.ip, "hostname": d.alias or d.hostname, "mac": d.mac or "-",
+            "ip": d.ip, "hostname": d.alias or d.hostname, "mac": d.mac or "-", "vendor": d.vendor,
             "status": "Online" if d.replied_icmp else "No ICMP reply (host up)",
             "tags": tags(d),
             "tag": "good" if d.replied_icmp else "warn",

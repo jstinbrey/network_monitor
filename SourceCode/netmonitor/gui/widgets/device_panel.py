@@ -88,7 +88,7 @@ class DevicePanel(ctk.CTkToplevel):
             return
         device, s = detail.device, detail.stats
         self.name.configure(text=device.alias or device.hostname)
-        self.address.configure(text="  ·  ".join(filter(None, [device.ip, device.mac or "MAC unknown", tags(device)])))
+        self.address.configure(text="  ·  ".join(filter(None, [device.ip, device.mac or "MAC unknown", device.vendor, tags(device)])))
         self.verdict.configure(text=verdict(s),
                                text_color=theme.TAG_COLORS.get(theme.STATUS_TAGS.get(s.status), theme.MUTED))
         loss = "No data" if s.loss_pct is None else f"{s.loss_pct:g}%"

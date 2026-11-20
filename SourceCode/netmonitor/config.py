@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent      # the SourceCode/ folder
 DB_PATH = BASE_DIR / "data" / "netmonitor.db"          # SQLite history
 OUTPUT_DIR = BASE_DIR / "output"                       # generated reports
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+OUI_PATH = Path(__file__).resolve().parent / "resources" / "oui.csv"   # IEEE MAC vendor registry
 
 # --- Feature 1: network discovery -----------------------------------------
 SWEEP_WORKERS = 64          # parallel pings during a scan

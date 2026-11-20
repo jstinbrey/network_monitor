@@ -64,6 +64,7 @@ class Device:
     known: bool = True           # False when its MAC is not in the baseline
     first_seen: str = ""
     last_seen: str = ""
+    vendor: str = ""             # maker, from the MAC; worked out each time it is loaded, never stored
 
 
 @dataclass

@@ -4,6 +4,7 @@ Pure rules over devices and their statistics; nothing here touches the
 network. The thresholds are in config.py.
 """
 from netmonitor import config, models
+from netmonitor.core import vendor
 from netmonitor.models import Device, HostStats, Recommendation
 
 _ORDER = {"critical": 0, "warning": 1, "info": 2}
@@ -46,8 +47,10 @@ def recommend(devices: list[Device], stats: list[HostStats]) -> list[Recommendat
                 "Check signal strength, interference, or a congested link.")
 
         if not d.known:
+            randomized = (" This device uses a randomized MAC address, so it can appear new on every network."
+                          if d.mac and vendor.is_randomized(d.mac) else "")
             add("warning", "Access control", d, f"New device on the network: {name}",
-                f"MAC address {d.mac} was not present in the first scan of this network.",
+                f"MAC address {d.mac} was not present in the first scan of this network." + randomized,
                 "Confirm it belongs on the network; if not, change the Wi-Fi password. "
                 "Phones that use randomized MAC addresses can appear as new.")
         if s and s.jitter_ms is not None and s.jitter_ms > config.JITTER_WARN_MS:

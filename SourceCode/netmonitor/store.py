@@ -10,11 +10,9 @@ from contextlib import closing
 from dataclasses import asdict
 
 from netmonitor import config
-from netmonitor.models import Device, PingResult
+from netmonitor.models import Device, PingResult, User
 
-DEVICE_COLUMNS = "network, ip, mac, hostname, alias, replied_icmp, is_self, is_gateway, known, first_seen, last_seen"
-PING_FIELDS = "ip, sent, received, loss_pct, rtts_ms, min_ms, avg_ms, max_ms, status, method, timestamp"
-PING_COLUMNS = "network, " + PING_FIELDS     # the PingResult fields plus the network they were measured on
+
 DEVICE_COLUMNS = "network, ip, mac, hostname, alias, replied_icmp, is_self, is_gateway, known, first_seen, last_seen"
 PING_FIELDS = "ip, sent, received, loss_pct, rtts_ms, min_ms, avg_ms, max_ms, status, method, timestamp"
 PING_COLUMNS = "network, " + PING_FIELDS     # the PingResult fields plus the network they were measured on
@@ -98,3 +96,37 @@ def get_pings(ip: str, network: str, path=None) -> list[PingResult]:
         rows = db.execute(f"SELECT {PING_FIELDS} FROM pings WHERE network = ? AND ip = ? ORDER BY id",
                           (network, ip)).fetchall()
     return [PingResult(**dict(row) | {"rtts_ms": json.loads(row["rtts_ms"])}) for row in rows]
+
+
+def add_user(username: str, salt: bytes, digest: bytes, role: str, path=None):
+    """Store a new account. The password itself is never stored, only its salt and hash."""
+    with closing(_connect(path)) as db, db:
+        db.execute("INSERT INTO users VALUES (?, ?, ?, ?)", (username, salt, digest, role))
+
+
+def get_user(username: str, path=None):
+    """The account's row (username, salt, hash, role), or None if there is no such user."""
+    with closing(_connect(path)) as db:
+        return db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+
+
+def list_users(path=None) -> list[User]:
+    """Every account, sorted by username."""
+    with closing(_connect(path)) as db:
+        rows = db.execute("SELECT username, role FROM users ORDER BY username").fetchall()
+    return [User(row["username"], row["role"]) for row in rows]
+
+
+def set_password(username: str, salt: bytes, digest: bytes, path=None):
+    with closing(_connect(path)) as db, db:
+        db.execute("UPDATE users SET salt = ?, hash = ? WHERE username = ?", (salt, digest, username))
+
+
+def set_role(username: str, role: str, path=None):
+    with closing(_connect(path)) as db, db:
+        db.execute("UPDATE users SET role = ? WHERE username = ?", (role, username))
+
+
+def delete_user(username: str, path=None):
+    with closing(_connect(path)) as db, db:
+        db.execute("DELETE FROM users WHERE username = ?", (username,))

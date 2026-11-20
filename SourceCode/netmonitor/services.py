@@ -4,9 +4,11 @@ Every function here can block for seconds, so views call them through
 gui.worker.run_async and never directly.
 """
 import ipaddress
+import math
+import time
 
 from netmonitor import config, models, store
-from netmonitor.core import advisor, discovery, netinfo, pinger, report_builder, statistics
+from netmonitor.core import advisor, auth, discovery, netinfo, pinger, report_builder, statistics
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
@@ -137,3 +139,114 @@ def scan_and_refresh(on_progress=None):
     scan(on_progress)
     refresh_all()
     return dashboard()
+
+
+# --- Accounts and roles ----------------------------------------------------
+_user = None                          # the signed-in models.User, or None
+_failures, _locked_until = 0, 0.0     # wrong passwords in a row; time.monotonic() when sign-in reopens
+
+
+def _clean(username):
+    """Usernames are compared without case or surrounding spaces."""
+    username = username.strip().lower()
+    if not username:
+        raise ValueError("Enter a username.")
+    return username
+
+
+def _add(username, password, confirm, role):
+    username = _clean(username)
+    if role not in (models.ADMIN, models.USER):
+        raise ValueError(f"Unknown role: {role}")
+    auth.check_new_password(username, password, confirm)
+    if store.get_user(username):
+        raise ValueError(f'The username "{username}" is already taken.')
+    store.add_user(username, *auth.hash_password(password), role)
+    return models.User(username, role)
+
+
+def needs_setup():
+    """True on the first run, before any account exists."""
+    return not store.list_users()
+
+
+def create_first_admin(username, password, confirm):
+    """First run only: create the administrator account and sign in with it."""
+    global _user
+    if not needs_setup():
+        raise PermissionError("An administrator account already exists.")
+    _user = _add(username, password, confirm, models.ADMIN)
+    return _user
+
+
+def login(username, password):
+    """Sign in. The same message for an unknown name and a wrong password, so neither is revealed."""
+    global _user, _failures, _locked_until
+    wait = _locked_until - time.monotonic()
+    if wait > 0:
+        raise ValueError(f"Too many attempts. Wait {math.ceil(wait)} s.")
+    row = store.get_user(username.strip().lower())
+    # An unknown name is still hashed, so it takes as long as a wrong password and timing reveals nothing.
+    salt, digest = (row["salt"], row["hash"]) if row else (bytes(16), b"")
+    if not auth.verify_password(password, salt, digest) or row is None:
+        _failures += 1
+        if _failures >= config.LOGIN_MAX_FAILURES:
+            _failures, _locked_until = 0, time.monotonic() + config.LOGIN_LOCK_S
+        raise ValueError("Wrong username or password.")
+    _failures = 0
+    _user = models.User(row["username"], row["role"])
+    return _user
+
+
+def stop_all():
+    """Stop every running ping -t and tracert. Step 7.2 fills this in."""
+
+
+def logout():
+    global _user
+    stop_all()
+    _user = None
+
+
+def current_user():
+    return _user
+
+
+def require_admin():
+    """The real role check. Views also disable admin buttons, but only for convenience."""
+    if not (_user and _user.is_admin):
+        raise PermissionError("Only an administrator can do this.")
+
+
+def users():
+    require_admin()
+    return store.list_users()
+
+
+def add_user(username, password, confirm, role):
+    require_admin()
+    return _add(username, password, confirm, role)
+
+
+def reset_password(username, password, confirm):
+    require_admin()
+    auth.check_new_password(username, password, confirm)
+    store.set_password(username, *auth.hash_password(password))
+
+
+def set_role(username, role):
+    """Admins cannot change their own role, so there is always at least one admin."""
+    require_admin()
+    if role not in (models.ADMIN, models.USER):
+        raise ValueError(f"Unknown role: {role}")
+    if username == _user.username:
+        raise ValueError("You cannot change the role of the account you are signed in with.")
+    store.set_role(username, role)
+
+
+def delete_user(username):
+    """Admins cannot delete themselves, so there is always at least one admin."""
+    require_admin()
+    if username == _user.username:
+        raise ValueError("You cannot delete the account you are signed in with.")
+    store.delete_user(username)

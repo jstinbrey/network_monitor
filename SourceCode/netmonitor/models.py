@@ -42,6 +42,7 @@ class Device:
     ip: str
     mac: str | None = None
     hostname: str = "Unknown"
+    alias: str = ""              # a name the admin gave the device; shown instead of hostname
     replied_icmp: bool = False   # answered the ping sweep
     is_self: bool = False        # this PC
     is_gateway: bool = False     # the default gateway (router)

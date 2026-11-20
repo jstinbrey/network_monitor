@@ -45,10 +45,6 @@ class DevicesView(ctk.CTkFrame):
         if row:
             self.app.show("Ping", ip=row)
 
-    def on_show(self):
-        """Called each time this view is opened: refresh the network details."""
-        run_async(services.network_info, on_done=self._show_info, on_error=self._show_error)
-
     def scan(self):
         self.scan_button.configure(state="disabled")
         self.progress.set(0)

@@ -41,7 +41,21 @@ def test_ping_history_round_trip(tmp_path):
     db = tmp_path / "t.db"
     first = pinger.build_result("192.168.1.1", 4, [3.0, 0.5, 4.0])
     second = pinger.build_result("192.168.1.1", 4, [])
-    store.save_ping(first, db)
-    store.save_ping(second, db)
-    assert store.get_pings("192.168.1.1", db) == [first, second]
-    assert store.get_pings("192.168.1.99", db) == []
+    store.save_ping(first, NET, db)
+    store.save_ping(second, NET, db)
+    assert store.get_pings("192.168.1.1", NET, db) == [first, second]
+    assert store.get_pings("192.168.1.99", NET, db) == []
+
+
+def test_networks_with_the_same_range_stay_separate(tmp_path):
+    db = tmp_path / "t.db"
+    home, cafe = "192.168.1.0/24 via aa-aa-aa-aa-aa-01", "192.168.1.0/24 via bb-bb-bb-bb-bb-02"
+    store.save_scan([device("192.168.1.5", "aa")], home, db)
+    store.save_scan([device("192.168.1.5", "cc")], cafe, db)
+    assert [d.mac for d in store.get_devices(home, db)] == ["aa"]
+    assert [d.mac for d in store.get_devices(cafe, db)] == ["cc"]
+
+    result = pinger.build_result("192.168.1.5", 4, [2.0, 3.0])
+    store.save_ping(result, home, db)
+    assert store.get_pings("192.168.1.5", home, db) == [result]
+    assert store.get_pings("192.168.1.5", cafe, db) == []      # same IP, other network: no history

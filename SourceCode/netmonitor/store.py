@@ -12,14 +12,25 @@ from dataclasses import asdict
 from netmonitor import config
 from netmonitor.models import Device, PingResult
 
-DEVICE_COLUMNS = "network, ip, mac, hostname, replied_icmp, is_self, is_gateway, known, first_seen, last_seen"
-PING_COLUMNS = "ip, sent, received, loss_pct, rtts_ms, min_ms, avg_ms, max_ms, status, method, timestamp"
+DEVICE_COLUMNS = "network, ip, mac, hostname, alias, replied_icmp, is_self, is_gateway, known, first_seen, last_seen"
+PING_FIELDS = "ip, sent, received, loss_pct, rtts_ms, min_ms, avg_ms, max_ms, status, method, timestamp"
+PING_COLUMNS = "network, " + PING_FIELDS     # the PingResult fields plus the network they were measured on
+DEVICE_COLUMNS = "network, ip, mac, hostname, alias, replied_icmp, is_self, is_gateway, known, first_seen, last_seen"
+PING_FIELDS = "ip, sent, received, loss_pct, rtts_ms, min_ms, avg_ms, max_ms, status, method, timestamp"
+PING_COLUMNS = "network, " + PING_FIELDS     # the PingResult fields plus the network they were measured on
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS devices ({DEVICE_COLUMNS}, PRIMARY KEY (network, ip));
 CREATE TABLE IF NOT EXISTS known_macs (network, mac, PRIMARY KEY (network, mac));
 CREATE TABLE IF NOT EXISTS pings (id INTEGER PRIMARY KEY, {PING_COLUMNS});
-CREATE INDEX IF NOT EXISTS pings_by_ip ON pings (ip);
+CREATE INDEX IF NOT EXISTS pings_by_host ON pings (network, ip);
+CREATE TABLE IF NOT EXISTS users (username PRIMARY KEY, salt BLOB, hash BLOB, role);
+CREATE TABLE IF NOT EXISTS port_checks (network, ip, checked_at, open_ports, PRIMARY KEY (network, ip));
+CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, network, at, kind, severity, ip, mac, detail,
+                                   dismissed DEFAULT 0);
+CREATE TABLE IF NOT EXISTS presence (network, mac, at, up);
+CREATE TABLE IF NOT EXISTS usage (day PRIMARY KEY, bytes_recv DEFAULT 0, bytes_sent DEFAULT 0);
+CREATE TABLE IF NOT EXISTS settings (key PRIMARY KEY, value);
 """
 
 
@@ -74,15 +85,16 @@ def mark_known(mac: str, network: str, path=None):
         db.execute("UPDATE devices SET known = 1 WHERE network = ? AND mac = ?", (network, mac))
 
 
-def save_ping(result: PingResult, path=None):
-    """Append one ping result to the history."""
+def save_ping(result: PingResult, network: str, path=None):
+    """Append one ping result to the history of a network."""
     with closing(_connect(path)) as db, db:
         db.execute(f"INSERT INTO pings ({PING_COLUMNS}) VALUES ({_placeholders(PING_COLUMNS)})",
-                   asdict(result) | {"rtts_ms": json.dumps(result.rtts_ms)})
+                   asdict(result) | {"network": network, "rtts_ms": json.dumps(result.rtts_ms)})
 
 
-def get_pings(ip: str, path=None) -> list[PingResult]:
-    """All stored ping results for a host, oldest first."""
+def get_pings(ip: str, network: str, path=None) -> list[PingResult]:
+    """All stored ping results for a host on a network, oldest first."""
     with closing(_connect(path)) as db:
-        rows = db.execute(f"SELECT {PING_COLUMNS} FROM pings WHERE ip = ? ORDER BY id", (ip,)).fetchall()
+        rows = db.execute(f"SELECT {PING_FIELDS} FROM pings WHERE network = ? AND ip = ? ORDER BY id",
+                          (network, ip)).fetchall()
     return [PingResult(**dict(row) | {"rtts_ms": json.loads(row["rtts_ms"])}) for row in rows]

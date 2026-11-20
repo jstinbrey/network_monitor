@@ -43,6 +43,14 @@ class HostTable(ctk.CTkFrame):
             self.tree.insert("", "end", iid=row["ip"], tags=(row.get("tag", ""),),
                              values=[row[key] for key in self.tree["columns"]])
 
+    def on_open(self, callback):
+        """Double-clicking a row calls callback(ip). Double-clicking a heading does nothing."""
+        def opened(event):
+            row = self.tree.identify_row(event.y)   # empty when the heading was double-clicked
+            if row:
+                callback(row)
+        self.tree.bind("<Double-1>", opened)
+
     def selected(self) -> list[str]:
         """The IP addresses of the selected rows."""
         return list(self.tree.selection())

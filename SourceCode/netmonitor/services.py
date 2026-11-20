@@ -96,6 +96,21 @@ def history(ip, limit=10):
     return store.get_pings(ip, network)[-limit:]
 
 
+def device_detail(ip):
+    """Device panel: one device, its statistics and its last 10 ping tests."""
+    network, devices = _current()
+    device = next((d for d in devices if d.ip == ip), None) or models.Device(ip=ip)   # pinged but never scanned
+    pings = store.get_pings(ip, network)
+    return models.DeviceDetail(device, statistics.host_stats(device, pings), pings[-10:])
+
+
+def set_alias(ip, name):
+    """Admin: give a device a name that is shown instead of its hostname. An empty name removes it."""
+    require_admin()
+    store.set_alias(ip, name.strip()[:config.ALIAS_MAX_LEN], _network_id(netinfo.get_network_info()))
+    return device_detail(ip)
+
+
 def generate_report(fmt):
     """Feature 4: write a report of the current network state; returns the file's path."""
     info = netinfo.get_network_info()

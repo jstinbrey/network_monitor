@@ -11,14 +11,15 @@ from netmonitor.models import Device, HostStats, NetworkSummary, PingResult
 
 def host_stats(device: Device, results: list[PingResult]) -> HostStats:
     """Combine every ping result for one host (oldest first) into one row of statistics."""
+    name = device.alias or device.hostname           # a name the admin gave wins
     if not results:
-        return HostStats(device.ip, device.hostname, 0, None, None, None, None, None, models.NO_DATA)
+        return HostStats(device.ip, name, 0, None, None, None, None, None, models.NO_DATA)
     rtts = [rtt for result in results for rtt in result.rtts_ms]
     sent = sum(result.sent for result in results)
     # Jitter: how much the delay changes from one reply to the next, on average.
     changes = [abs(later - earlier) for earlier, later in zip(rtts, rtts[1:])]
     return HostStats(
-        ip=device.ip, hostname=device.hostname, samples=len(rtts),
+        ip=device.ip, hostname=name, samples=len(rtts),
         avg_ms=round(mean(rtts), 1) if rtts else None,
         max_ms=max(rtts, default=None),
         min_ms=min(rtts, default=None),

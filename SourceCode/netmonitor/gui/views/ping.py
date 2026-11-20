@@ -41,6 +41,7 @@ class PingView(ctk.CTkFrame):
                                       ("loss", "Packet Loss", 110), ("avg", "Average", 100), ("max", "Maximum", 100),
                                       ("status", "Status", 220)])
         self.table.tree.configure(height=7)
+        self.table.on_open(app.open_device)
         self.table.pack(fill="x", padx=theme.PAD, pady=theme.PAD)
 
     def on_show(self, ip=None, ips=None):

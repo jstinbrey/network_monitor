@@ -29,7 +29,8 @@ class SecurityView(ctk.CTkFrame):
             card.destroy()
         for rec in recs:
             is_new_device = rec.category == "Access control" and self.app.is_admin   # only an Admin may mark it known
-            RecommendationCard(self.cards, rec, self._mark_known if is_new_device else None).pack(fill="x", pady=4)
+            RecommendationCard(self.cards, rec, self._mark_known if is_new_device else None,
+                               on_open=self.app.open_device).pack(fill="x", pady=4)
         counts = [sum(r.severity == severity for r in recs) for severity in ("critical", "warning", "info")]
         self.status.configure(text="{} critical  ·  {} warnings  ·  {} info.  "
                                    "Run Refresh all in Statistics for up-to-date results.".format(*counts),

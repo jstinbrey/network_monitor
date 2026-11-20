@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS presence (network, mac, at, up);
 CREATE TABLE IF NOT EXISTS usage (day PRIMARY KEY, bytes_recv DEFAULT 0, bytes_sent DEFAULT 0);
 CREATE TABLE IF NOT EXISTS settings (key PRIMARY KEY, value);
 """
+NETWORK_TABLES = ("devices", "known_macs", "pings", "port_checks", "events", "presence")   # keyed by network
 
 
 def _connect(path=None):
@@ -96,6 +97,13 @@ def get_pings(ip: str, network: str, path=None) -> list[PingResult]:
         rows = db.execute(f"SELECT {PING_FIELDS} FROM pings WHERE network = ? AND ip = ? ORDER BY id",
                           (network, ip)).fetchall()
     return [PingResult(**dict(row) | {"rtts_ms": json.loads(row["rtts_ms"])}) for row in rows]
+
+
+def clear_network(network: str, path=None):
+    """Delete everything stored for one network. Accounts, settings and daily usage are kept."""
+    with closing(_connect(path)) as db, db:
+        for table in NETWORK_TABLES:      # names come from the constant above, never from input
+            db.execute(f"DELETE FROM {table} WHERE network = ?", (network,))
 
 
 def add_user(username: str, salt: bytes, digest: bytes, role: str, path=None):

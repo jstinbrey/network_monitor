@@ -38,6 +38,7 @@ def _current():
 
 def scan(on_progress=None):
     """Feature 1: find every active device on the local network and remember them."""
+    require_admin()
     info = netinfo.get_network_info()
     devices = discovery.discover(info, on_progress)
     # The scan has just read the ARP table, so the gateway's MAC is already in the results.
@@ -127,6 +128,7 @@ def recommendations():
 
 def mark_known(ip):
     """Feature 5: the user confirms a new device belongs; returns the fresh recommendations."""
+    require_admin()
     network, devices = _current()
     for device in devices:
         if device.ip == ip and device.mac:
@@ -135,10 +137,25 @@ def mark_known(ip):
 
 
 def scan_and_refresh(on_progress=None):
-    """Dashboard button: scan for devices, ping every one, then return fresh dashboard data."""
+    """Dashboard button for an Admin: scan for devices, ping every one, then return fresh dashboard data."""
+    require_admin()
     scan(on_progress)
     refresh_all()
     return dashboard()
+
+
+def refresh_dashboard():
+    """Dashboard button for a User, who may not scan: ping the known devices, then return fresh dashboard data."""
+    refresh_all()
+    return dashboard()
+
+
+def clear_history():
+    """Admin: forget every device, ping and alert stored for the network this PC is on now."""
+    require_admin()
+    network = _network_id(netinfo.get_network_info())
+    store.clear_network(network)
+    return network
 
 
 # --- Accounts and roles ----------------------------------------------------

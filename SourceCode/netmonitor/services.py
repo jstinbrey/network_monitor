@@ -118,15 +118,24 @@ def set_alias(ip, name):
     return device_detail(ip)
 
 
+def _live():
+    """(details, live ARP table, network id, stored devices) for the network this PC is on now.
+
+    The spoofing check needs the live table: stored devices keep old IPs after DHCP hands out new ones.
+    """
+    info = netinfo.get_network_info()
+    arp = discovery.read_arp(info.local_ip, ipaddress.ip_network(info.cidr))
+    network = _network_id(info, arp)
+    return info, arp, network, _with_vendor(store.get_devices(network))
+
+
 def generate_report(fmt):
     """Feature 4: write a report of the current network state; returns the file's path."""
-    info = netinfo.get_network_info()
-    network = _network_id(info)
-    devices = _with_vendor(store.get_devices(network))
+    info, arp, network, devices = _live()
     host_stats = _stats(devices, network)
     return report_builder.build({
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
-        "recommendations": advisor.recommend(devices, host_stats),
+        "recommendations": advisor.recommend(devices, host_stats, arp, info.gateway),
         "pings": [ping for device in devices for ping in store.get_pings(device.ip, network)[-1:]],   # latest per device
     }, fmt)
 
@@ -138,9 +147,9 @@ def reports():
 
 def dashboard():
     """Dashboard: the network summary, per-host statistics, and recommendations in one call."""
-    network, devices = _current()
+    info, arp, network, devices = _live()
     host_stats = _stats(devices, network)
-    return statistics.summary(host_stats), host_stats, advisor.recommend(devices, host_stats)
+    return statistics.summary(host_stats), host_stats, advisor.recommend(devices, host_stats, arp, info.gateway)
 
 
 def recommendations():

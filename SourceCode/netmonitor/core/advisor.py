@@ -3,6 +3,8 @@
 Pure rules over devices and their statistics; nothing here touches the
 network. The thresholds are in config.py.
 """
+import ipaddress
+
 from netmonitor import config, models
 from netmonitor.core import vendor
 from netmonitor.models import Device, HostStats, Recommendation
@@ -15,8 +17,35 @@ def _is_weak(stats: HostStats, loss_limit: float) -> bool:
     return stats.avg_ms is not None and (stats.loss_pct >= loss_limit or stats.avg_ms > config.LATENCY_WARN_MS)
 
 
-def recommend(devices: list[Device], stats: list[HostStats]) -> list[Recommendation]:
-    """Every recommendation for the network, most severe first."""
+def _arp_findings(arp, gateway, add):
+    """One MAC answering for several IPs. If one of them is the gateway, that is what ARP poisoning looks like.
+
+    ARP has no authentication (RFC 826), so any device can claim any IP address.
+    """
+    owners = {}
+    for ip, mac in arp.items():
+        owners.setdefault(mac, []).append(ip)
+    for mac, ips in owners.items():
+        if len(ips) < 2:
+            continue
+        ips = sorted(ips, key=ipaddress.ip_address)
+        if gateway in ips:
+            add("critical", "ARP spoofing", None, f"Possible ARP spoofing: the gateway shares MAC {mac}",
+                f"{', '.join(ips)} all answer with the same MAC address. Traffic to the internet may be "
+                "passing through another device (a man-in-the-middle).",
+                "Disconnect unknown devices, restart the router, and change the Wi-Fi password.")
+        else:
+            add("warning", "ARP", None, f"{len(ips)} addresses share MAC {mac}",
+                f"{', '.join(ips)} answer with one MAC. A Wi-Fi extender or a PC with two addresses does this harmlessly.",
+                "Check that you recognise this device.")
+
+
+def recommend(devices: list[Device], stats: list[HostStats],
+              arp: dict[str, str] | None = None, gateway: str | None = None) -> list[Recommendation]:
+    """Every recommendation for the network, most severe first.
+
+    arp: the live {ip: mac} table, and gateway: the gateway's IP. With them, ARP spoofing is checked too.
+    """
     by_ip = {s.ip: s for s in stats}
     found = []
 
@@ -61,6 +90,8 @@ def recommend(devices: list[Device], stats: list[HostStats]) -> list[Recommendat
             add("info", "Firewall", d, f"{name} does not answer ping",
                 "The device is up (it answers ARP) but its firewall drops ICMP echo requests.",
                 "No action needed; this is the default for Windows PCs.")
+
+    _arp_findings(arp or {}, gateway, add)
 
     # General reminders, shown on every network.
     add("info", "Firewall", None, "Keep the firewall turned on",

@@ -20,7 +20,9 @@ class DashboardView(ctk.CTkFrame):
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD, pady=(0, 12))
-        self.scan_button = ctk.CTkButton(bar, text="Scan and refresh", command=self.scan_and_refresh)
+        # A User may not scan, so their button only pings the devices already known.
+        self.scan_button = ctk.CTkButton(bar, text="Scan and refresh" if app.is_admin else "Refresh",
+                                         command=self.scan_and_refresh)
         self.scan_button.pack(side="left")
         self.status = ctk.CTkLabel(bar, text="", text_color=theme.MUTED)
         self.status.pack(side="left", padx=12)
@@ -53,6 +55,10 @@ class DashboardView(ctk.CTkFrame):
     def scan_and_refresh(self):
         """Find the devices (Feature 1), ping each one (Feature 2), then show the new totals."""
         self.scan_button.configure(state="disabled")
+        if not self.app.is_admin:
+            self.status.configure(text="Pinging every device...", text_color=theme.MUTED)
+            run_async(services.refresh_dashboard, on_done=self._show, on_error=self._show_error)
+            return
         self.status.configure(text="Scanning...", text_color=theme.MUTED)
         # Progress comes from the scan's own thread, so post() carries it to the UI thread.
         run_async(services.scan_and_refresh, lambda done, total: post(self._show_progress, (done, total)),
@@ -69,14 +75,6 @@ class DashboardView(ctk.CTkFrame):
 
         score = summary.health_score
         score_color = theme.GREEN if score >= 80 else theme.AMBER if score >= 50 else theme.RED
-        latency = summary.network_avg_ms
-        shown = {"Devices": (summary.devices, None),
-                 "Reachable": (f"{summary.reachable} / {summary.devices}", None),
-                 "Average latency": ("No data" if latency is None else f"{latency:g} ms", None),
-                 "Health score": (f"{score} / 100", score_color)}
-        for title, (text, color) in shown.items():
-            if not summary.devices:
-                text, color = "-", None            # no scan yet: do not show a red 0 / 100
         latency = summary.network_avg_ms
         shown = {"Devices": (summary.devices, None),
                  "Reachable": (f"{summary.reachable} / {summary.devices}", None),

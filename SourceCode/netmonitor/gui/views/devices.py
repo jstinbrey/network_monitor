@@ -18,7 +18,10 @@ class DevicesView(ctk.CTkFrame):
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD, pady=12)
-        self.scan_button = ctk.CTkButton(bar, text="Scan network", command=self.scan)
+        # Only an Admin may scan. A User sees the button greyed out, so the feature is still visible.
+        self.scan_state = "normal" if app.is_admin else "disabled"   # the button's state while no scan runs
+        self.scan_button = ctk.CTkButton(bar, text="Scan network" if app.is_admin else "Scan network (Admin)",
+                                         command=self.scan, state=self.scan_state)
         self.scan_button.pack(side="left")
         self.progress = ctk.CTkProgressBar(bar, width=260)
         self.progress.set(0)
@@ -56,7 +59,7 @@ class DevicesView(ctk.CTkFrame):
     def on_show(self):
         """Called each time this view is opened: refresh the network details."""
         run_async(services.network_info, on_done=self._show_info, on_error=self._show_error)
-        if self.scan_button.cget("state") == "normal":   # not while a scan is running
+        if self.scan_button.cget("state") == self.scan_state:   # not while a scan is running
             run_async(services.devices, on_done=self._show_devices, on_error=self._show_error)
 
     def _show_info(self, info):
@@ -85,8 +88,8 @@ class DevicesView(ctk.CTkFrame):
         } for d in devices])
         self.status.configure(text=f"{len(devices)} devices found" if devices else "No devices yet. Run a scan.",
                               text_color=theme.MUTED)
-        self.scan_button.configure(state="normal")
+        self.scan_button.configure(state=self.scan_state)
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)
-        self.scan_button.configure(state="normal")
+        self.scan_button.configure(state=self.scan_state)

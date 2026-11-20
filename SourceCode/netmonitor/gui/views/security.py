@@ -10,6 +10,7 @@ from netmonitor.gui.worker import run_async
 class SecurityView(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="transparent")
+        self.app = app
         ctk.CTkLabel(self, text="Security", font=theme.TITLE_FONT).pack(anchor="w", padx=theme.PAD, pady=(theme.PAD, 8))
         self.status = ctk.CTkLabel(self, text="Checking...", anchor="w", text_color=theme.MUTED)
         self.status.pack(fill="x", padx=theme.PAD, pady=(0, 12))
@@ -27,7 +28,7 @@ class SecurityView(ctk.CTkFrame):
         for card in self.cards.winfo_children():
             card.destroy()
         for rec in recs:
-            is_new_device = rec.category == "Access control"
+            is_new_device = rec.category == "Access control" and self.app.is_admin   # only an Admin may mark it known
             RecommendationCard(self.cards, rec, self._mark_known if is_new_device else None).pack(fill="x", pady=4)
         counts = [sum(r.severity == severity for r in recs) for severity in ("critical", "warning", "info")]
         self.status.configure(text="{} critical  ·  {} warnings  ·  {} info.  "

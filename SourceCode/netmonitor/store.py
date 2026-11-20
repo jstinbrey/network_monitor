@@ -84,6 +84,13 @@ def mark_known(mac: str, network: str, path=None):
         db.execute("UPDATE devices SET known = 1 WHERE network = ? AND mac = ?", (network, mac))
 
 
+def set_alias(ip: str, alias: str, network: str, path=None):
+    """Name a device. A rescan never overwrites the alias column, so the name stays."""
+    # shortcut: the name belongs to the IP, so a device that DHCP moves to a new IP loses it.
+    with closing(_connect(path)) as db, db:
+        db.execute("UPDATE devices SET alias = ? WHERE network = ? AND ip = ?", (alias, network, ip))
+
+
 def save_ping(result: PingResult, network: str, path=None):
     """Append one ping result to the history of a network."""
     with closing(_connect(path)) as db, db:

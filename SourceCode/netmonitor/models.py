@@ -98,6 +98,14 @@ class HostStats:
 
 
 @dataclass
+class DeviceDetail:
+    """Everything the device panel shows, gathered in one service call."""
+    device: Device
+    stats: HostStats
+    history: list[PingResult] = field(default_factory=list)   # the last 10 tests, oldest first
+
+
+@dataclass
 class NetworkSummary:
     """Feature 3: network-wide performance summary."""
     devices: int

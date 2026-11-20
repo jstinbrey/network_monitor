@@ -50,3 +50,4 @@ APP_TITLE = "NetMonitor"
 WINDOW_SIZE = "1180x720"
 MIN_WINDOW_SIZE = (1000, 640)
 LIVE_REFRESH_S = 30
+ALIAS_MAX_LEN = 40          # longer device names are cut

@@ -11,6 +11,7 @@ from netmonitor.gui.views.ping import PingView
 from netmonitor.gui.views.reports import ReportsView
 from netmonitor.gui.views.security import SecurityView
 from netmonitor.gui.views.statistics import StatisticsView
+from netmonitor.gui.widgets.device_panel import DevicePanel
 
 VIEWS = [("Dashboard", DashboardView), ("Devices", DevicesView), ("Ping", PingView),
          ("Statistics", StatisticsView), ("Reports", ReportsView),
@@ -33,7 +34,7 @@ class App(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
         self.protocol("WM_DELETE_WINDOW", self.close)
 
-        self.user = self.main = None
+        self.user = self.main = self.panel = None
         self.login = LoginView(self, on_success=self.start)
         self.login.grid(row=0, column=0, sticky="nsew")
 
@@ -76,11 +77,17 @@ class App(ctk.CTk):
         self.views[name].tkraise()
         self.views[name].on_show(**kwargs)
 
+    def open_device(self, ip):
+        """One device panel for the whole app: made on first use, then reused."""
+        if self.panel is None:
+            self.panel = DevicePanel(self.main, self)
+        self.panel.show(ip)
+
     def sign_out(self):
         """Stop anything still running, throw the views away, and go back to the sign-in screen."""
         services.logout()
-        self.main.destroy()
-        self.user = self.main = None
+        self.main.destroy()                           # the device panel is inside it, so it goes too
+        self.user = self.main = self.panel = None
         self.login.reset()
         self.login.grid()
 

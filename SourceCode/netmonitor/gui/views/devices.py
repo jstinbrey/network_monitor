@@ -3,6 +3,7 @@ import customtkinter as ctk
 
 from netmonitor import services
 from netmonitor.gui import theme
+from netmonitor.gui.widgets.device_panel import tags
 from netmonitor.gui.widgets.host_table import HostTable
 from netmonitor.gui.worker import post, run_async
 
@@ -34,7 +35,7 @@ class DevicesView(ctk.CTkFrame):
                                       ("mac", "MAC Address", 170), ("status", "Status", 210),
                                       ("tags", "Tags", 120)])
         self.table.pack(fill="both", expand=True, padx=theme.PAD, pady=(0, theme.PAD))
-        self.table.tree.bind("<Double-1>", self._ping_row)
+        self.table.on_open(app.open_device)
 
     def ping_selected(self):
         """Feature 2: ping every selected device and show the results in the Ping view."""
@@ -42,11 +43,6 @@ class DevicesView(ctk.CTkFrame):
             self.app.show("Ping", ips=self.table.selected())
         else:
             self.status.configure(text="Select one or more devices first (Ctrl+click for several).")
-
-    def _ping_row(self, event):
-        row = self.table.tree.identify_row(event.y)   # empty when the heading was double-clicked
-        if row:
-            self.app.show("Ping", ip=row)
 
     def scan(self):
         self.scan_button.configure(state="disabled")
@@ -80,13 +76,12 @@ class DevicesView(ctk.CTkFrame):
 
     def _show_devices(self, devices):
         self.table.set_rows([{
-            "ip": d.ip, "hostname": d.hostname, "mac": d.mac or "-",
+            "ip": d.ip, "hostname": d.alias or d.hostname, "mac": d.mac or "-",
             "status": "Online" if d.replied_icmp else "No ICMP reply (host up)",
-            "tags": ", ".join(tag for tag, on in (("This PC", d.is_self), ("Gateway", d.is_gateway),
-                                                  ("New", not d.known)) if on),
+            "tags": tags(d),
             "tag": "good" if d.replied_icmp else "warn",
         } for d in devices])
-        self.status.configure(text=f"{len(devices)} devices found" if devices else "No devices yet. Run a scan.",
+        self.status.configure(text=f"{len(devices)} devices found. Double-click one for details." if devices else "No devices yet. Run a scan.",
                               text_color=theme.MUTED)
         self.scan_button.configure(state=self.scan_state)
 

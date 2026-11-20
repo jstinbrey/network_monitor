@@ -32,6 +32,7 @@ class StatisticsView(ctk.CTkFrame):
                                       ("samples", "Replies", 70), ("status", "Status", 190)])
         self.table.pack(fill="both", expand=True, padx=theme.PAD)
         self.table.tree.bind("<<TreeviewSelect>>", self._load_history)
+        self.table.on_open(app.open_device)
 
         self.chart = LatencyChart(self)
         self.chart.pack(fill="x", padx=theme.PAD, pady=theme.PAD)
@@ -55,7 +56,7 @@ class StatisticsView(ctk.CTkFrame):
             "status": STATUS_LABELS[s.status], "tag": theme.STATUS_TAGS.get(s.status, ""),
         } for s in stats])
         self.status.configure(
-            text=f"{len(stats)} devices. Click a heading to sort, or a row for its history." if stats
+            text=f"{len(stats)} devices. Click a heading to sort, a row for its history, or double-click it for details." if stats
             else "No devices yet. Run a scan in the Devices view.", text_color=theme.MUTED)
         self.refresh_button.configure(state="normal")
 

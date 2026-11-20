@@ -87,13 +87,13 @@ class DashboardView(ctk.CTkFrame):
 
         replied = [s for s in stats if s.avg_ms is not None][:MAX_BARS]
         self.chart.plot(["." + s.ip.rsplit(".", 1)[1] for s in replied], [s.avg_ms for s in replied],
-                        "Average latency per host (label: last part of the IP address)" if replied
-                        else "No ping results yet")
+                        "Average latency per host (click a bar for details)" if replied
+                        else "No ping results yet", on_pick=lambda i: self.app.open_device(replied[i].ip))
 
         for card in self.recommendations.winfo_children():
             card.destroy()
         for rec in recommendations[:TOP_RECOMMENDATIONS]:
-            RecommendationCard(self.recommendations, rec).pack(fill="x", pady=4)
+            RecommendationCard(self.recommendations, rec, on_open=self.app.open_device).pack(fill="x", pady=4)
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)

@@ -88,7 +88,7 @@ def test_limits_are_admin_only_and_must_be_numbers_of_0_or_more(fresh, monkeypat
         services.save_settings({"bw_down_mbps": "5"})
     monkeypatch.setattr(services, "_user", models.User("admin", models.ADMIN))
     for bad in ({"bw_down_mbps": "-1"}, {"bw_down_mbps": "abc"}, {"bw_down_mbps": ""}, {"bw_down_mbps": "nan"},
-                {"watch": "5"}, {"watch_min": "0.5"}, {}):                 # watch: at least 1 minute
+                {"watch": "5"}, {"watch_min": "0.5"}, {}, {"watch_min": "inf"}, {"bw_down_mbps": "1e400"}):
         with pytest.raises(ValueError):
             services.save_settings(bad)
     assert services.save_settings({"bw_down_mbps": " 20 ", "bw_daily_gb": "5"}) == LIMITS | {"watch_min": 5}

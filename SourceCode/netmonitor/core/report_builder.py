@@ -44,7 +44,7 @@ def build(data: dict, fmt: str, folder: Path = None) -> Path:
     data = OPTIONAL | data | {"generated_at": now.strftime("%Y-%m-%d %H:%M:%S"), "labels": STATUS_LABELS}
     folder = folder or config.OUTPUT_DIR
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"report_{now:%Y%m%d_%H%M%S}.{fmt}"
+    path = folder / f"report_{now:%Y%m%d_%H%M%S_%f}.{fmt}"   # microseconds: two reports never share a name
 
     if fmt == "html":
         # autoescape: a hostname containing HTML is shown as text, never run as markup

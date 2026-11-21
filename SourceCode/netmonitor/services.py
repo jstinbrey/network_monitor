@@ -414,9 +414,9 @@ def save_settings(values):
         clean = {key: float(text) for key, text in values.items() if key in config.SETTING_DEFAULTS}
     except ValueError:
         clean = {}
-    # `value >= minimum` is also False for NaN.
-    if not values or len(clean) != len(values) or \
-            not all(value >= config.SETTING_MINIMUMS.get(key, 0) for key, value in clean.items()):
+    # `value >= minimum` is also False for NaN; isfinite refuses "inf", which would break Watch's timer.
+    if not values or len(clean) != len(values) or not all(
+            math.isfinite(value) and value >= config.SETTING_MINIMUMS.get(key, 0) for key, value in clean.items()):
         raise ValueError("Each limit must be a number of 0 or more (0 means no limit), "
                          "and the watch interval at least 1 minute.")
     store.save_settings(clean)

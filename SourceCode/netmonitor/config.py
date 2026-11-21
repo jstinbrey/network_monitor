@@ -11,7 +11,7 @@ from pathlib import Path
 # --- Version ----------------------------------------------------------------
 # 0.<phase>.<fix> while the build plan runs; 1.0.0 is the submitted build.
 # Pushing the tag v + VERSION builds NetMonitor.exe and publishes it (README.md, "Making a release").
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 
 # --- File locations -------------------------------------------------------
 FROZEN = getattr(sys, "frozen", False)                 # True when running as NetMonitor.exe (PyInstaller)

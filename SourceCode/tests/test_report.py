@@ -85,6 +85,11 @@ def test_open_ports_alerts_wifi_and_data_use(tmp_path):
         encoding="utf-8")
 
 
+def test_two_reports_in_a_row_never_share_a_name(tmp_path):
+    first, second = (report_builder.build(report_data([]), "csv", tmp_path) for _ in range(2))
+    assert first != second and first.exists() and second.exists()
+
+
 def test_unknown_format_is_rejected(tmp_path):
     with pytest.raises(ValueError):
         report_builder.build(report_data(DEVICES), "docx", tmp_path)

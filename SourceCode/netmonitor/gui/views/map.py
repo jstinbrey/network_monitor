@@ -67,7 +67,8 @@ class MapView(ctk.CTkFrame):
         self.app.panel.check_ports()
 
     def on_show(self):
-        self._load(None, "")
+        if self.refresh_button.cget("state") == "normal":   # not while a Refresh or Scan runs: its result will redraw
+            self._load(None, "")
 
     def refresh(self, scan=False):
         """Ping every known device (Refresh), or scan for devices first (Scan, Admin), then redraw."""

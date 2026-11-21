@@ -8,6 +8,7 @@ import json
 import sqlite3
 from contextlib import closing
 from dataclasses import asdict
+from datetime import datetime
 
 from netmonitor import config
 from netmonitor.models import Device, PingResult, User
@@ -104,6 +105,20 @@ def get_pings(ip: str, network: str, path=None) -> list[PingResult]:
         rows = db.execute(f"SELECT {PING_FIELDS} FROM pings WHERE network = ? AND ip = ? ORDER BY id",
                           (network, ip)).fetchall()
     return [PingResult(**dict(row) | {"rtts_ms": json.loads(row["rtts_ms"])}) for row in rows]
+
+
+def save_port_check(ip: str, open_ports: list[dict], network: str, path=None):
+    """Remember the latest port check of a host; it replaces the one before."""
+    with closing(_connect(path)) as db, db:
+        db.execute("INSERT OR REPLACE INTO port_checks VALUES (?, ?, ?, ?)",
+                   (network, ip, datetime.now().isoformat(timespec="seconds"), json.dumps(open_ports)))
+
+
+def get_port_checks(network: str, path=None) -> dict[str, list[dict]]:
+    """{ip: open ports} for every host checked on a network."""
+    with closing(_connect(path)) as db:
+        rows = db.execute("SELECT ip, open_ports FROM port_checks WHERE network = ?", (network,)).fetchall()
+    return {row["ip"]: json.loads(row["open_ports"]) for row in rows}
 
 
 def clear_network(network: str, path=None):

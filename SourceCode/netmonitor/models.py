@@ -104,6 +104,7 @@ class DeviceDetail:
     device: Device
     stats: HostStats
     history: list[PingResult] = field(default_factory=list)   # the last 10 tests, oldest first
+    open_ports: list[dict] | None = None                      # the latest port check; None: never checked
 
 
 @dataclass

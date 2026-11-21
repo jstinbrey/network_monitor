@@ -68,6 +68,23 @@ class Device:
 
 
 @dataclass
+class Hop:
+    """Traceroute: one router on the path, with the reply times of its three probes."""
+    number: int
+    times_ms: list[float | None]   # None: that probe got no reply
+    address: str | None            # None when every probe timed out
+
+    @property
+    def loss_pct(self) -> float:
+        return round(self.times_ms.count(None) / len(self.times_ms) * 100, 1)
+
+    @property
+    def avg_ms(self) -> float | None:
+        replies = [t for t in self.times_ms if t is not None]
+        return round(sum(replies) / len(replies), 1) if replies else None
+
+
+@dataclass
 class PingResult:
     """Feature 2: the outcome of one connectivity test against one host."""
     ip: str

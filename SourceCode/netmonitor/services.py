@@ -5,13 +5,15 @@ gui.worker.run_async and never directly.
 """
 import ipaddress
 import math
+import socket
 import time
 
 from netmonitor import config, models, store
-from netmonitor.core import advisor, auth, discovery, netinfo, pinger, ports, report_builder, statistics, vendor
+from netmonitor.core import advisor, auth, discovery, netinfo, pinger, ports, report_builder, statistics, tracer, vendor
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
+hop_segment = tracer.segment              # traceroute: "your router", "ISP access network" or "internet"
 
 
 def _network_id(info, macs=None) -> str:
@@ -73,6 +75,30 @@ def run_ping(ip, count=config.PING_COUNT):
 def run_ping_many(ips, count=config.PING_COUNT):
     """Feature 2: ping several hosts in parallel and store the results."""
     return _record(pinger.ping_many(ips, count))
+
+
+def start_traceroute(target, on_hop, on_done):
+    """Feature 2 extension: trace the route to an IP address or a name; returns the running trace, for Stop.
+
+    on_hop(hop) is called as each hop arrives, and on_done((hops, status, sentence)) at the end,
+    both from the trace's own thread.
+    """
+    target = target.strip()
+    try:
+        ip = pinger.validate_ip(socket.gethostbyname(target)) if target else None
+    except (OSError, UnicodeError, ValueError):     # a name that does not resolve
+        ip = None
+    if ip is None:
+        raise ValueError("Enter an IP address or a host name that exists, for example 1.1.1.1.")
+
+    def done(hops):
+        _running.discard(trace)
+        on_done((hops, *(("info", "Stopped.") if trace.stopped else tracer.analyse(hops, ip))))
+
+    trace = tracer.Traceroute(ip, on_hop, done)
+    _running.add(trace)
+    trace.start()
+    return trace
 
 
 def devices():
@@ -255,8 +281,13 @@ def login(username, password):
     return _user
 
 
+_running = set()                      # traceroutes still running (Step 7.2 adds continuous pings)
+
+
 def stop_all():
-    """Stop every running ping -t and tracert. Step 7.2 fills this in."""
+    """Stop every running tracert (and, from Step 7.2, ping -t). Called by sign-out and window close."""
+    for task in list(_running):       # a copy: a stopped task removes itself from the set
+        task.stop()
 
 
 def logout():

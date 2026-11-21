@@ -11,9 +11,10 @@ from netmonitor.gui.views.ping import PingView
 from netmonitor.gui.views.reports import ReportsView
 from netmonitor.gui.views.security import SecurityView
 from netmonitor.gui.views.statistics import StatisticsView
+from netmonitor.gui.views.traceroute import TracerouteView
 from netmonitor.gui.widgets.device_panel import DevicePanel
 
-VIEWS = [("Dashboard", DashboardView), ("Devices", DevicesView), ("Ping", PingView),
+VIEWS = [("Dashboard", DashboardView), ("Devices", DevicesView), ("Ping", PingView), ("Traceroute", TracerouteView),
          ("Statistics", StatisticsView), ("Reports", ReportsView),
          ("Security", SecurityView)]   # sidebar order; the first one opens after sign-in
 ADMIN_VIEWS = [("Admin", AdminView)]   # built only for administrators, so a User's window never contains them

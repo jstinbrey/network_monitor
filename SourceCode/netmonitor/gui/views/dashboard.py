@@ -5,6 +5,7 @@ from netmonitor import services
 from netmonitor.gui import theme
 from netmonitor.gui.widgets.latency_chart import LatencyChart
 from netmonitor.gui.widgets.recommendation_card import RecommendationCard
+from netmonitor.gui.widgets.verdict_card import VerdictCard
 from netmonitor.gui.worker import post, run_async
 
 CARDS = ["Devices", "Reachable", "Average latency", "Health score"]
@@ -24,8 +25,13 @@ class DashboardView(ctk.CTkFrame):
         self.scan_button = ctk.CTkButton(bar, text="Scan and refresh" if app.is_admin else "Refresh",
                                          command=self.scan_and_refresh)
         self.scan_button.pack(side="left")
+        self.diagnose_button = ctk.CTkButton(bar, text="Diagnose network", command=self.diagnose)
+        self.diagnose_button.pack(side="left", padx=(8, 0))
         self.status = ctk.CTkLabel(bar, text="", text_color=theme.MUTED)
         self.status.pack(side="left", padx=12)
+
+        self.verdict = VerdictCard(self)
+        self.verdict.pack(fill="x", padx=theme.PAD, pady=(0, 12))
 
         # Four stat cards: a small muted title above a large value.
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -63,6 +69,22 @@ class DashboardView(ctk.CTkFrame):
         # Progress comes from the scan's own thread, so post() carries it to the UI thread.
         run_async(services.scan_and_refresh, lambda done, total: post(self._show_progress, (done, total)),
                   on_done=self._show, on_error=self._show_error)
+
+    def diagnose(self):
+        """Test this PC, the router, the internet and DNS in turn, and show where a problem is."""
+        self.diagnose_button.configure(state="disabled")
+        self.verdict.start()
+        # Each layer is reported from the worker thread, so post() carries it to the UI thread.
+        run_async(services.diagnose, lambda step: post(self.verdict.add_step, step),
+                  on_done=self._show_verdict, on_error=self._diagnose_failed)
+
+    def _show_verdict(self, verdict):
+        self.verdict.show(verdict)
+        self.diagnose_button.configure(state="normal")
+
+    def _diagnose_failed(self, error):
+        self.verdict.show_error(error)
+        self.diagnose_button.configure(state="normal")
 
     def _show_progress(self, progress):
         done, total = progress

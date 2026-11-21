@@ -9,7 +9,7 @@ import socket
 import time
 
 from netmonitor import config, models, store
-from netmonitor.core import advisor, auth, discovery, netinfo, pinger, ports, report_builder, statistics, tracer, vendor
+from netmonitor.core import advisor, auth, diagnosis, discovery, netinfo, pinger, ports, report_builder, statistics, tracer, vendor
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
@@ -99,6 +99,42 @@ def start_traceroute(target, on_hop, on_done):
     _running.add(trace)
     trace.start()
     return trace
+
+
+def diagnose(on_step=None):
+    """Find where a network problem is, one layer at a time: this PC, the router, the internet, DNS.
+
+    on_step(DiagnosisStep) is called after each layer, from this worker thread, so the card fills in live.
+    The router and both internet targets are pinged in parallel, so it takes about DIAG_PINGS seconds.
+    """
+    def step(name, ok, detail):
+        if on_step:
+            on_step(models.DiagnosisStep(name, ok, detail))
+
+    def short(stats):
+        return "no reply" if stats.avg_ms is None else f"{stats.avg_ms:g} ms"
+
+    m = models.Measurements()
+    try:
+        info = netinfo.get_network_info()
+    except RuntimeError:                          # not connected to any network
+        info = None
+    m.local_ip = info.local_ip if info else None
+    adapter = netinfo.get_adapter(m.local_ip) if info else None
+    usable = info is not None and not m.local_ip.startswith("169.254.")
+    step("Adapter", usable, f"{adapter}, {m.local_ip}" if info else "no address")
+    if usable and info.gateway:
+        results = pinger.ping_many([info.gateway, *config.INTERNET_TARGETS], config.DIAG_PINGS)
+        m.gateway, *internet = [statistics.host_stats(models.Device(ip=r.ip), [r]) for r in results]
+        m.internet = min(internet, key=lambda s: (s.loss_pct, s.avg_ms or math.inf))   # the better target
+        step("Router", m.gateway.avg_ms is not None, short(m.gateway))
+        step("Internet", m.internet.avg_ms is not None, short(m.internet))
+        servers = diagnosis.dns_servers(adapter) if adapter else []
+        m.dns_server = servers[0] if servers else None
+        m.dns_ms = diagnosis.dns_query(m.dns_server) if m.dns_server else None
+        m.dns_public_ms = diagnosis.dns_query(diagnosis.PUBLIC_DNS)
+        step("DNS", m.dns_ms is not None, "no answer" if m.dns_ms is None else f"{m.dns_ms:g} ms")
+    return diagnosis.verdict(m)
 
 
 def devices():

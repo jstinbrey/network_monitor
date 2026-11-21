@@ -26,6 +26,11 @@ PING_MANY_WORKERS = 16      # parallel hosts in a batch ping
 TCP_TIMEOUT_S = 3           # must exceed 2 s: Windows reports a refused
                             # connection only after retrying for about 2 s
 
+# --- Feature 2 extension: traceroute --------------------------------------
+TRACE_MAX_HOPS = 15         # tracert -h: give up after this many routers
+TRACE_TIMEOUT_MS = 500      # tracert -w: wait per probe
+TRACE_JUMP_MS = 30          # a lasting rise in latency above this at one hop is flagged
+
 # --- Features 3 and 5: thresholds -----------------------------------------
 LATENCY_WARN_MS = 100       # average latency above this is "degraded"
 LOSS_WARN_PCT = 5           # packet loss above this is "weak connectivity"

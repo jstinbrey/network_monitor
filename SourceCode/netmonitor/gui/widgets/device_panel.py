@@ -41,7 +41,7 @@ class DevicePanel(ctk.CTkToplevel):
     def __init__(self, parent, app):
         """parent: the frame that holds the views, so signing out destroys the panel along with them."""
         super().__init__(parent)
-        self.ip = None
+        self.app, self.ip = app, None
         self.title("Device")
         self.geometry("680x680")
         self.transient(app)                                  # stays above the main window
@@ -74,6 +74,7 @@ class DevicePanel(ctk.CTkToplevel):
         actions.pack(fill="x", padx=theme.PAD)
         self.ping_button = ctk.CTkButton(actions, text="Ping", width=100, command=self.ping)
         self.ping_button.pack(side="left")
+        ctk.CTkButton(actions, text="Traceroute", width=100, command=self.traceroute).pack(side="left", padx=(8, 0))
         self.known_button = None
         if app.is_admin:   # a User never gets these buttons, and services refuse the calls anyway
             self.known_button = ctk.CTkButton(actions, text="Mark as known", width=130, command=self.mark_known)
@@ -131,6 +132,10 @@ class DevicePanel(ctk.CTkToplevel):
                                    f"{result.received} of {result.sent} replies{times}.",
                               text_color=theme.TAG_COLORS.get(theme.STATUS_TAGS.get(result.status), theme.MUTED))
         self._load()        # the new test changes the tiles and the history
+
+    def traceroute(self):
+        self.withdraw()                     # the trace shows in the main window, which the panel would cover
+        self.app.show("Traceroute", ip=self.ip)
 
     def mark_known(self):
         run_async(services.mark_known, self.ip, on_done=lambda recs: self._load(), on_error=self._show_error)

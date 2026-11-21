@@ -175,3 +175,25 @@ class Verdict:
     evidence: list[str]          # every line quotes measured numbers, so it can be checked
     action: str
     layer: str                   # OSI layer(s), e.g. "1–2", "3", "7"
+
+
+@dataclass
+class Event:
+    """Something that happened while NetMonitor ran, shown in the alert bar and kept in the events table."""
+    id: int | None               # None until stored
+    at: str
+    kind: str                    # "bandwidth"; later steps add more
+    severity: str                # "critical", "warning" or "info", as for a Recommendation
+    ip: str | None               # the device it is about, if any: View opens its panel
+    mac: str | None
+    detail: str
+    dismissed: bool = False
+
+
+@dataclass
+class BandwidthSample:
+    """Bandwidth monitor: this PC's traffic over the last second."""
+    down_mbps: float
+    up_mbps: float
+    today_bytes: int             # received + sent today, saved and not yet saved
+    alerts: list[str] = field(default_factory=list)   # limits just passed, to store as events

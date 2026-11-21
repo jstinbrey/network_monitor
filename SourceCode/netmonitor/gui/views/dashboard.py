@@ -4,13 +4,15 @@ import customtkinter as ctk
 from netmonitor import services
 from netmonitor.gui import theme
 from netmonitor.gui.widgets.latency_chart import LatencyChart
-from netmonitor.gui.widgets.recommendation_card import RecommendationCard
+from netmonitor.gui.widgets.recommendation_card import SEVERITY_COLORS, RecommendationCard
 from netmonitor.gui.widgets.verdict_card import VerdictCard
 from netmonitor.gui.worker import post, run_async
 
 CARDS = ["Devices", "Reachable", "Average latency", "Health score"]
 MAX_BARS = 15              # more bars than this cannot be read
 TOP_RECOMMENDATIONS = 3
+RECENT_ALERTS = 5
+ALERTS_WIDTH = 300
 
 
 class DashboardView(ctk.CTkFrame):
@@ -44,8 +46,17 @@ class DashboardView(ctk.CTkFrame):
             self.values[title] = ctk.CTkLabel(card, text="-", font=theme.TITLE_FONT)
             self.values[title].pack(anchor="w", padx=12, pady=(0, 8))
 
-        self.chart = LatencyChart(self)
-        self.chart.pack(fill="x", padx=theme.PAD, pady=12)
+        # The chart, and beside it the latest alerts (dismissed ones in grey).
+        middle = ctk.CTkFrame(self, fg_color="transparent")
+        middle.pack(fill="x", padx=theme.PAD, pady=12)
+        self.chart = LatencyChart(middle)
+        self.chart.pack(side="left", fill="both", expand=True)
+        alerts = ctk.CTkFrame(middle, width=ALERTS_WIDTH)
+        alerts.pack(side="right", fill="y", padx=(12, 0))
+        alerts.pack_propagate(False)                   # the chart sets the height; long alerts wrap
+        ctk.CTkLabel(alerts, text="Recent alerts", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=12, pady=(8, 4))
+        self.alert_rows = ctk.CTkFrame(alerts, fg_color="transparent")
+        self.alert_rows.pack(fill="both", expand=True, padx=12)
 
         heading = ctk.CTkFrame(self, fg_color="transparent")
         heading.pack(fill="x", padx=theme.PAD)
@@ -57,6 +68,27 @@ class DashboardView(ctk.CTkFrame):
     def on_show(self):
         """Reload from stored results each time the view is opened."""
         run_async(services.dashboard, on_done=self._show, on_error=self._show_error)
+        self.load_alerts()
+
+    def load_alerts(self):
+        """Also called by the window when an alert arrives or is dismissed."""
+        run_async(services.events, RECENT_ALERTS, on_done=self._show_alerts)   # an error shows in the status line
+
+    def _show_alerts(self, events):
+        if not self.winfo_exists():                    # signed out while they loaded
+            return
+        for row in self.alert_rows.winfo_children():
+            row.destroy()
+        if not events:
+            ctk.CTkLabel(self.alert_rows, text="No alerts yet.", text_color=theme.MUTED).pack(anchor="w")
+        for event in events:
+            row = ctk.CTkLabel(self.alert_rows, text=f"{event.at[5:16].replace('T', ' ')}   {event.detail}",
+                               text_color=theme.MUTED if event.dismissed else SEVERITY_COLORS[event.severity],
+                               anchor="w", justify="left", wraplength=ALERTS_WIDTH - 30)
+            row.pack(fill="x", pady=2)
+            if event.ip:                               # an alert about a device: a click opens its panel
+                row.configure(cursor="hand2")
+                row.bind("<Button-1>", lambda _, ip=event.ip: self.app.open_device(ip))
 
     def scan_and_refresh(self):
         """Find the devices (Feature 1), ping each one (Feature 2), then show the new totals."""

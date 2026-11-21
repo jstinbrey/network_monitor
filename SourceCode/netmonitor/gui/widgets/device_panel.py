@@ -43,7 +43,7 @@ class DevicePanel(ctk.CTkToplevel):
         super().__init__(parent)
         self.app, self.ip = app, None
         self.title("Device")
-        self.geometry("680x680")
+        self.geometry("760x680")                             # wide enough for an admin's six buttons in one row
         self.transient(app)                                  # stays above the main window
         self.protocol("WM_DELETE_WINDOW", self.withdraw)     # closing only hides it; the next open reuses it
 
@@ -75,6 +75,8 @@ class DevicePanel(ctk.CTkToplevel):
         self.ping_button = ctk.CTkButton(actions, text="Ping", width=100, command=self.ping)
         self.ping_button.pack(side="left")
         ctk.CTkButton(actions, text="Traceroute", width=100, command=self.traceroute).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(actions, text="Continuous ping", width=130,
+                      command=self.continuous_ping).pack(side="left", padx=(8, 0))
         self.known_button = None
         if app.is_admin:   # a User never gets these buttons, and services refuse the calls anyway
             self.known_button = ctk.CTkButton(actions, text="Mark as known", width=130, command=self.mark_known)
@@ -136,6 +138,10 @@ class DevicePanel(ctk.CTkToplevel):
     def traceroute(self):
         self.withdraw()                     # the trace shows in the main window, which the panel would cover
         self.app.show("Traceroute", ip=self.ip)
+
+    def continuous_ping(self):
+        self.withdraw()                     # the chart shows in the main window
+        self.app.show("Ping", ip=self.ip, continuous=True)
 
     def mark_known(self):
         run_async(services.mark_known, self.ip, on_done=lambda recs: self._load(), on_error=self._show_error)

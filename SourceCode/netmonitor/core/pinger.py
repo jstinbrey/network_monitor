@@ -2,14 +2,18 @@
 import ipaddress
 import re
 import subprocess
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from netmonitor import config, models
+from netmonitor.core import statistics
 from netmonitor.models import PingResult
 
 NO_WINDOW = subprocess.CREATE_NO_WINDOW   # otherwise every ping flashes a console window
 _RTT = re.compile(r"time([=<])\s*(\d+(?:\.\d+)?)\s*ms", re.I)
+_LOST = ("Request timed out", "Reply from", "General failure", "PING: transmit failed",
+         "Destination host unreachable")
 
 
 def validate_ip(text: str) -> str:
@@ -75,3 +79,82 @@ def ping_many(ips: list[str], count=config.PING_COUNT) -> list[PingResult]:
     """Ping several hosts in parallel; results come back in the same order."""
     with ThreadPoolExecutor(max_workers=config.PING_MANY_WORKERS) as pool:
         return list(pool.map(lambda ip: ping(ip, count), ips))
+
+
+# --- Continuous ping (ping -t) ------------------------------------------------
+def parse_reply(line: str) -> tuple[bool, float | None]:
+    """(is_echo_line, rtt_ms) for one line of ping output; rtt_ms is None for a lost reply.
+    "Reply from …: Destination host unreachable." has no time, so it counts as lost."""
+    found = _RTT.search(line)
+    if found:
+        return True, 0.5 if found.group(1) == "<" else float(found.group(2))
+    return line.startswith(_LOST), None
+
+
+class ContinuousPing:
+    """`ping -t ip` in a child process. on_reply(rtt_ms or None, line) is called from a reader thread."""
+
+    def __init__(self, ip: str, on_reply, timeout_ms=config.PING_TIMEOUT_MS):
+        self.ip = validate_ip(ip)
+        self.on_reply = on_reply
+        self.process = subprocess.Popen(["ping", "-t", "-w", str(timeout_ms), self.ip],
+                                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                        text=True, creationflags=NO_WINDOW)
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        for line in self.process.stdout:          # ends when the process is terminated
+            is_echo, rtt = parse_reply(line.strip())
+            if is_echo:
+                self.on_reply(rtt, line.strip())
+
+    def stop(self):
+        """End the child process. Safe to call twice."""
+        if self.process.poll() is None:
+            self.process.terminate()
+            self.process.wait(timeout=5)
+
+
+class PingSession:
+    """The running totals of one continuous ping. Pure: each reply is handed to add(), so it is easy to test."""
+
+    def __init__(self, ip: str):
+        self.ip = ip
+        self.rtts = []                    # one per echo request; None for a lost reply
+        self.current_outage = 0           # lost replies in a row right now (about one per second)
+        self.longest_outage, self.longest_outage_at = 0, None   # the longest run so far, and when it began
+        self._outage_began = None
+
+    def add(self, rtt: float | None):
+        self.rtts.append(rtt)
+        if rtt is not None:
+            self.current_outage = 0
+            return
+        if not self.current_outage:
+            self._outage_began = datetime.now().strftime("%H:%M:%S")
+        self.current_outage += 1
+        if self.current_outage > self.longest_outage:
+            self.longest_outage, self.longest_outage_at = self.current_outage, self._outage_began
+
+    def result(self) -> PingResult:
+        """The session so far as one ping test, so a stored session looks like any other."""
+        return build_result(self.ip, len(self.rtts), [rtt for rtt in self.rtts if rtt is not None])
+
+    @property
+    def jitter_ms(self) -> float | None:
+        return statistics.host_stats(models.Device(ip=self.ip), [self.result()]).jitter_ms   # the Statistics formula
+
+    def verdict(self) -> tuple[str, str]:
+        """("good", "warn" or "bad", one sentence) to show when the session is stopped."""
+        if not self.rtts:
+            return "warn", "Stopped before the first reply."
+        r, jitter = self.result(), self.jitter_ms
+        if not r.received:
+            return "bad", f"No replies from {self.ip} in {r.sent} pings: it is offline, or it blocks ping."
+        outage = (f" Longest outage: {self.longest_outage} lost in a row (about {self.longest_outage} s) "
+                  f"from {self.longest_outage_at}." if self.longest_outage else " No lost replies.")
+        slow = (r.loss_pct > config.LOSS_WARN_PCT or r.avg_ms > config.LATENCY_WARN_MS
+                or (jitter or 0) > config.JITTER_WARN_MS)
+        return ("warn" if slow else "good",
+                f"{self.ip}: {r.received} of {r.sent} replies ({r.loss_pct:g}% lost), average {r.avg_ms:g} ms, "
+                f"jitter {'-' if jitter is None else f'{jitter:g} ms'}.{outage}")

@@ -6,14 +6,19 @@ gui.worker.run_async and never directly.
 import ipaddress
 import math
 import socket
+import threading
 import time
+from datetime import date, datetime
 
 from netmonitor import config, models, store
-from netmonitor.core import advisor, auth, diagnosis, discovery, netinfo, pinger, ports, report_builder, statistics, tracer, vendor
+from netmonitor.core import (advisor, auth, bandwidth, diagnosis, discovery, netinfo, pinger, ports, report_builder,
+                             statistics, tracer, vendor)
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
 hop_segment = tracer.segment              # traceroute: "your router", "ISP access network" or "internet"
+describe_bandwidth = bandwidth.describe   # the Connection view's verdict line
+rate_text = bandwidth.rate_text           # "12.4 Mbps", or "350 kbps" below 1 Mbps
 
 
 def _network_id(info, macs=None) -> str:
@@ -75,6 +80,33 @@ def run_ping(ip, count=config.PING_COUNT):
 def run_ping_many(ips, count=config.PING_COUNT):
     """Feature 2: ping several hosts in parallel and store the results."""
     return _record(pinger.ping_many(ips, count))
+
+
+def start_continuous_ping(ip, on_reply):
+    """Feature 2: ping -t until Stop; returns the running ping, for Stop. Raises ValueError for a bad IP.
+
+    on_reply(session, rtt_ms or None, line) is called from the reader thread for each reply.
+    Starting a child process takes milliseconds, so a view may call this one directly.
+    """
+    session = pinger.PingSession(pinger.validate_ip(ip))
+
+    def reply(rtt, line):                         # reader thread
+        session.add(rtt)
+        on_reply(session, rtt, line)
+
+    handle = pinger.ContinuousPing(ip, reply)
+    handle.session = session
+    _running.add(handle)
+    return handle
+
+
+def stop_continuous_ping(handle):
+    """Stop a continuous ping, store it like any other ping test, and return its verdict (status, sentence)."""
+    handle.stop()
+    _running.discard(handle)
+    if handle.session.rtts:
+        _record([handle.session.result()])        # stored like any ping; the ARP check is included
+    return handle.session.verdict()
 
 
 def start_traceroute(target, on_hop, on_done):
@@ -260,6 +292,97 @@ def clear_history():
     return network
 
 
+# --- Events (alerts) ---------------------------------------------------------
+def record_event(kind, severity, ip, mac, detail):
+    """Store something that happened, e.g. a bandwidth limit passed; returns it with its id, for the alert bar."""
+    event = models.Event(None, datetime.now().isoformat(timespec="seconds"), kind, severity, ip, mac, detail)
+    event.id = store.add_event(_network_id(netinfo.get_network_info()), event)
+    return event
+
+
+def events(limit=20):
+    """The latest events on this network, newest first; dismissed ones included."""
+    return store.get_events(_network_id(netinfo.get_network_info()), limit)
+
+
+def dismiss(event_id):
+    store.dismiss_event(event_id)
+
+
+# --- Settings and the bandwidth monitor ---------------------------------------
+_limits = {}                                    # the bandwidth settings, loaded on first use; save_settings updates it
+_adapter = {"ip": None, "name": None, "meter": None}   # looked up again only when the local IP changes
+_alarms = {"bw_down_mbps": bandwidth.LimitAlarm(), "bw_up_mbps": bandwidth.LimitAlarm()}
+_today = {"day": None, "bytes": 0, "cap_level": 0}      # today's use, saved and not yet saved
+_unsaved = [0, 0]                               # bytes received and sent since the last flush_usage
+_unsaved_lock = threading.Lock()                # bandwidth_sample (UI thread) and flush_usage (a worker) share it
+
+
+def settings():
+    """The saved settings, with the default for any never saved."""
+    return config.BW_DEFAULTS | store.get_settings()
+
+
+def save_settings(values):
+    """Admin: save the bandwidth limits from {key: text}. Each must be a number of 0 or more (0 = no limit)."""
+    require_admin()
+    try:
+        clean = {key: float(text) for key, text in values.items() if key in config.BW_DEFAULTS}
+    except ValueError:
+        clean = {}
+    if not values or len(clean) != len(values) or not all(value >= 0 for value in clean.values()):   # NaN fails >= 0
+        raise ValueError("Each limit must be a number of 0 or more (0 means no limit).")
+    store.save_settings(clean)
+    _limits.update(settings())                  # the monitor uses the new limits from its next sample
+    return dict(_limits)
+
+
+def bandwidth_sample():
+    """Bandwidth monitor, called once a second on the UI thread. It reads the adapter's byte counters only
+    (about 5 ms, no network traffic). Returns a BandwidthSample, or None when there is no rate yet.
+
+    A limit just passed comes back in sample.alerts; storing it takes longer, so the window does that in a worker.
+    """
+    ip = netinfo.get_local_ip()
+    if ip != _adapter["ip"]:                    # first call, or another network: find the adapter again
+        _adapter.update(ip=ip, name=netinfo.get_adapter(ip) if ip else None, meter=bandwidth.Meter())
+    counters = bandwidth.read_counters(_adapter["name"]) if _adapter["name"] else None
+    rates = _adapter["meter"].update(*counters, time.monotonic()) if counters else None
+    if not rates:
+        return None
+    down, up, recv, sent = rates
+    day = date.today().isoformat()
+    if _today["day"] != day:                    # the first sample, or past midnight: start from today's saved total
+        _today.update(day=day, bytes=store.get_usage(day), cap_level=0)
+    _today["bytes"] += recv + sent
+    with _unsaved_lock:
+        _unsaved[0] += recv
+        _unsaved[1] += sent
+    if not _limits:
+        _limits.update(settings())
+
+    alerts = []
+    for name, rate, key in (("Download", down, "bw_down_mbps"), ("Upload", up, "bw_up_mbps")):
+        if _alarms[key].update(rate, _limits[key]):
+            alerts.append(f"{name} above the {_limits[key]:g} Mbps limit for {config.BW_SUSTAIN_S} s: "
+                          f"{bandwidth.rate_text(rate)}.")
+    level = bandwidth.cap_level(_today["bytes"], _limits["bw_daily_gb"])
+    if level > _today["cap_level"]:
+        alerts.append(f"{level}% of today's {_limits['bw_daily_gb']:g} GB cap used: {_today['bytes'] / 1e9:.2f} GB.")
+    _today["cap_level"] = level                 # a raised cap lowers the level, so the warning can come again
+    return models.BandwidthSample(down, up, _today["bytes"], alerts)
+
+
+def flush_usage():
+    """Add the bytes counted since the last call to today's row of the usage table."""
+    with _unsaved_lock:
+        recv, sent = _unsaved
+        _unsaved[:] = [0, 0]
+    if recv or sent:
+        # shortcut: bytes counted just before midnight and saved just after go to the new day (at most 10 s of traffic).
+        store.add_usage(date.today().isoformat(), recv, sent)
+
+
 # --- Accounts and roles ----------------------------------------------------
 _user = None                          # the signed-in models.User, or None
 _failures, _locked_until = 0, 0.0     # wrong passwords in a row; time.monotonic() when sign-in reopens
@@ -317,13 +440,15 @@ def login(username, password):
     return _user
 
 
-_running = set()                      # traceroutes still running (Step 7.2 adds continuous pings)
+_running = set()                      # every tracert and ping -t still running
 
 
 def stop_all():
-    """Stop every running tracert (and, from Step 7.2, ping -t). Called by sign-out and window close."""
-    for task in list(_running):       # a copy: a stopped task removes itself from the set
+    """Stop every running tracert and ping -t. Called by sign-out and window close.
+    A continuous ping stopped here is not stored: only its Stop button stores it."""
+    for task in list(_running):       # a copy: a stopped trace removes itself from the set
         task.stop()
+    _running.clear()
 
 
 def logout():

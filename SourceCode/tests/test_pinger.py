@@ -1,7 +1,10 @@
 """ Test for core/pinger.py (Feature 2: connectivity testing)."""
+import threading
+import time
+
 import pytest
 
-from netmonitor import models
+from netmonitor import models, services
 from netmonitor.core import pinger
 
 OUTPUT = """
@@ -34,3 +37,51 @@ def test_no_replies_is_offline():
 def test_bad_input_is_rejected(bad):
     with pytest.raises(ValueError):
         pinger.ping(bad)
+
+
+# --- Step 7.2: continuous ping ------------------------------------------------
+@pytest.mark.parametrize("line, expected", [
+    ("Reply from 1.1.1.1: bytes=32 time=12ms TTL=57", (True, 12.0)),
+    ("Reply from 127.0.0.1: bytes=32 time<1ms TTL=128", (True, 0.5)),
+    ("Request timed out.", (True, None)),
+    ("Reply from 192.168.1.37: Destination host unreachable.", (True, None)),   # a reply line with no time: lost
+    ("General failure.", (True, None)),
+    ("PING: transmit failed. General failure.", (True, None)),
+    ("Pinging 1.1.1.1 with 32 bytes of data:", (False, None)),
+    ("", (False, None)),
+])
+def test_parse_reply(line, expected):
+    assert pinger.parse_reply(line) == expected
+
+
+def test_session_totals_and_longest_outage():
+    session = pinger.PingSession("192.168.1.1")
+    for rtt in [2, 3, None, None, None, 4]:
+        session.add(rtt)
+    r = session.result()
+    assert (r.sent, r.received, r.loss_pct, r.min_ms, r.avg_ms, r.max_ms) == (6, 3, 50.0, 2, 3.0, 4)
+    assert (session.longest_outage, session.current_outage, session.jitter_ms) == (3, 0, 1.0)
+    status, sentence = session.verdict()
+    assert status == "warn" and "3 lost in a row" in sentence
+
+
+def test_a_real_continuous_ping_and_stop_ends_it():
+    replies = []
+    handle = pinger.ContinuousPing("127.0.0.1", lambda rtt, line: replies.append(rtt))
+    time.sleep(3)
+    handle.stop()
+    handle.stop()                                   # safe twice
+    assert 3 <= len(replies) <= 5 and None not in replies
+    assert handle.process.poll() is not None        # no ping.exe is left running
+
+
+def test_stop_stores_the_session_and_stop_all_does_not(monkeypatch):
+    recorded = []
+    monkeypatch.setattr(services, "_record", recorded.extend)
+    for stop in (services.stop_continuous_ping, lambda handle: services.stop_all()):
+        got = threading.Event()
+        handle = services.start_continuous_ping("127.0.0.1", lambda session, rtt, line: got.set())
+        assert got.wait(5)
+        stop(handle)
+        assert handle.process.poll() is not None and handle not in services._running
+    assert len(recorded) == 1 and recorded[0].received >= 1

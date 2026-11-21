@@ -25,6 +25,8 @@ PING_TIMEOUT_MS = 1000      # wait per echo request
 PING_MANY_WORKERS = 16      # parallel hosts in a batch ping
 TCP_TIMEOUT_S = 3           # must exceed 2 s: Windows reports a refused
                             # connection only after retrying for about 2 s
+ECG_WINDOW = 60             # continuous ping: replies on screen (about one per second)
+LOG_MAX_LINES = 500         # older lines of the Ping log are deleted
 
 # --- Feature 2 extension: traceroute --------------------------------------
 TRACE_MAX_HOPS = 15         # tracert -h: give up after this many routers
@@ -59,6 +61,13 @@ DNS_TIMEOUT_S = 2
 GATEWAY_SLOW_MS = 50        # a router this slow to answer means a poor Wi-Fi or LAN link
 INTERNET_SLOW_MS = 150
 DNS_SLOW_MS = 300
+
+# --- Bandwidth --------------------------------------------------------------
+BW_SAMPLE_MS = 1000
+BW_SUSTAIN_S = 10           # seconds above a limit before it alerts
+BW_SAVE_EVERY_S = 10
+BW_WINDOW_S = 120           # seconds shown in the chart
+BW_DEFAULTS = {"bw_down_mbps": 0, "bw_up_mbps": 0, "bw_daily_gb": 0}   # 0 = no limit
 
 # --- Window ---------------------------------------------------------------
 APP_TITLE = "NetMonitor"

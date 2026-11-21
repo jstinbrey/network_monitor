@@ -11,7 +11,7 @@ from dataclasses import asdict
 from datetime import datetime
 
 from netmonitor import config
-from netmonitor.models import Device, PingResult, User
+from netmonitor.models import Device, Event, PingResult, User
 
 
 DEVICE_COLUMNS = "network, ip, mac, hostname, alias, replied_icmp, is_self, is_gateway, known, first_seen, last_seen"
@@ -119,6 +119,52 @@ def get_port_checks(network: str, path=None) -> dict[str, list[dict]]:
     with closing(_connect(path)) as db:
         rows = db.execute("SELECT ip, open_ports FROM port_checks WHERE network = ?", (network,)).fetchall()
     return {row["ip"]: json.loads(row["open_ports"]) for row in rows}
+
+
+def add_event(network: str, event: Event, path=None) -> int:
+    """Store one event; returns its id, which Dismiss needs."""
+    with closing(_connect(path)) as db, db:
+        return db.execute("INSERT INTO events (network, at, kind, severity, ip, mac, detail) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                          (network, event.at, event.kind, event.severity, event.ip, event.mac, event.detail)).lastrowid
+
+
+def get_events(network: str, limit=20, path=None) -> list[Event]:
+    """The most recent events on a network, newest first. Dismissed ones are included and marked."""
+    with closing(_connect(path)) as db:
+        rows = db.execute("SELECT id, at, kind, severity, ip, mac, detail, dismissed FROM events "
+                          "WHERE network = ? ORDER BY id DESC LIMIT ?", (network, limit)).fetchall()
+    return [Event(**dict(row) | {"dismissed": bool(row["dismissed"])}) for row in rows]
+
+
+def dismiss_event(event_id: int, path=None):
+    with closing(_connect(path)) as db, db:
+        db.execute("UPDATE events SET dismissed = 1 WHERE id = ?", (event_id,))
+
+
+def get_settings(path=None) -> dict:
+    """Every saved setting as {key: value}. Settings never saved are missing: config gives their defaults."""
+    with closing(_connect(path)) as db:
+        return {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM settings")}
+
+
+def save_settings(values: dict, path=None):
+    with closing(_connect(path)) as db, db:
+        db.executemany("INSERT OR REPLACE INTO settings VALUES (?, ?)", values.items())
+
+
+def get_usage(day: str, path=None) -> int:
+    """Bytes received plus sent on one day (an ISO date), as saved so far."""
+    with closing(_connect(path)) as db:
+        row = db.execute("SELECT bytes_recv + bytes_sent FROM usage WHERE day = ?", (day,)).fetchone()
+    return row[0] if row else 0
+
+
+def add_usage(day: str, recv: int, sent: int, path=None):
+    """Add bytes to a day's totals; the day's row is made on its first save."""
+    with closing(_connect(path)) as db, db:
+        db.execute("INSERT INTO usage VALUES (?, ?, ?) ON CONFLICT (day) DO UPDATE SET "
+                   "bytes_recv = bytes_recv + excluded.bytes_recv, bytes_sent = bytes_sent + excluded.bytes_sent",
+                   (day, recv, sent))
 
 
 def clear_network(network: str, path=None):

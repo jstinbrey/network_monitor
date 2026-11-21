@@ -77,14 +77,18 @@ def verdict(m: Measurements) -> Verdict:
         return Verdict("bad", "Router", "Connected, but the router gave no address (DHCP failed).",
                        [f"This PC gave itself {m.local_ip}, the address Windows picks when no DHCP server answers."],
                        "Restart the router, then disconnect from the network and connect again.", "3")
+    # A poor link to the router is often a weak Wi-Fi signal, so its numbers go with the evidence.
+    radio = [f"Wi-Fi signal {m.wifi.signal_pct}% ({m.wifi.rssi_dbm} dBm): {m.wifi.quality.lower()}."] if m.wifi else []
     if gw is None or gw.loss_pct == 100:
         return Verdict("bad", "Wi-Fi / LAN", "This PC cannot reach the router.",
-                       [f"Router {gw.ip}: all {config.DIAG_PINGS} pings lost." if gw else "No default gateway is set."],
-                       "Move closer to the router or check the cable, then restart the router.", "1–2")
+                       [f"Router {gw.ip}: all {config.DIAG_PINGS} pings lost." if gw else "No default gateway is set."]
+                       + radio, "Move closer to the router or check the cable, then restart the router.", "1–2")
     router = f"Router {gw.ip}: {describe(gw)}."
     if gw.loss_pct > config.LOSS_WARN_PCT or gw.avg_ms > config.GATEWAY_SLOW_MS \
             or (gw.jitter_ms or 0) > config.JITTER_WARN_MS:
-        return Verdict("warn", "Wi-Fi / LAN", "The link to your router is unstable.", [router],
+        weak = m.wifi and m.wifi.signal_pct < config.WIFI_WEAK_PCT
+        return Verdict("warn", "Wi-Fi / LAN", "The link to your router is unstable"
+                       + (", and the Wi-Fi signal is weak." if weak else "."), [router] + radio,
                        "Move closer to the router or use a cable; other busy devices on the same Wi-Fi also slow it.",
                        "1–2")
     if net is None or net.loss_pct == 100:

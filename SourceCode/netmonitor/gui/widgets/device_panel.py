@@ -1,10 +1,14 @@
 """Device panel: everything about one device in a window of its own, opened from any list of devices."""
+from datetime import datetime
+
 import customtkinter as ctk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 
 from netmonitor import config, services
 from netmonitor.gui import theme
 from netmonitor.gui.views.statistics import ms
-from netmonitor.gui.widgets.latency_chart import LatencyChart
+from netmonitor.gui.widgets.latency_chart import BACKGROUND, LatencyChart
 from netmonitor.gui.worker import run_async
 from netmonitor.models import STATUS_LABELS
 
@@ -67,6 +71,13 @@ class DevicePanel(ctk.CTkToplevel):
         self.seen.pack(fill="x", padx=theme.PAD, pady=(8, 0))
         self.ports = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=640)
         self.ports.pack(fill="x", padx=theme.PAD)
+        # Uptime from watch mode: one green (up) or red (down) segment from each check to the next.
+        self.uptime = ctk.CTkLabel(self, text="", text_color=theme.MUTED, anchor="w")
+        self.uptime.pack(fill="x", padx=theme.PAD)
+        self.strip = Figure(figsize=(5, 0.3), dpi=100, facecolor=BACKGROUND)
+        self.strip_axes = self.strip.add_axes((0, 0, 1, 1))
+        self.strip_canvas = FigureCanvasTkAgg(self.strip, master=self)
+        self.strip_canvas.get_tk_widget().pack(fill="x", padx=theme.PAD)
         self.chart = LatencyChart(self)
         self.chart.pack(fill="both", expand=True, padx=theme.PAD, pady=8)
 
@@ -116,11 +127,26 @@ class DevicePanel(ctk.CTkToplevel):
                                  f"Last seen {device.last_seen.replace('T', ' ') or '-'}")
         text, color = ports_line(detail.open_ports)
         self.ports.configure(text=text, text_color=color)
+        self._draw_uptime(detail)
         history = detail.history
         self.chart.plot([r.timestamp[11:] for r in history], [r.avg_ms or 0 for r in history],
                         "Average latency of the last 10 tests" if history else "No ping tests stored yet")
         if self.known_button:
             self.known_button.configure(state="disabled" if device.known else "normal")
+
+    def _draw_uptime(self, detail):
+        checks = detail.presence
+        self.uptime.configure(text=f"Uptime, last 24 h: {detail.uptime_pct:g}% of {len(checks)} watch checks"
+                              if checks else "Uptime: no watch-mode checks in the last 24 hours")
+        axes, now = self.strip_axes, datetime.now()
+        axes.clear()
+        axes.set_axis_off()
+        axes.set_xlim(-24, 0)                       # hours ago
+        axes.set_ylim(0, 1)
+        hours = [(datetime.fromisoformat(at) - now).total_seconds() / 3600 for at, _ in checks]
+        axes.broken_barh([(start, end - start) for start, end in zip(hours, hours[1:] + [0])], (0, 1),
+                         facecolors=[theme.GREEN if up else theme.RED for _, up in checks])
+        self.strip_canvas.draw_idle()
 
     def ping(self):
         self.ping_button.configure(state="disabled")

@@ -77,7 +77,23 @@ BW_SAMPLE_MS = 1000
 BW_SUSTAIN_S = 10           # seconds above a limit before it alerts
 BW_SAVE_EVERY_S = 10
 BW_WINDOW_S = 120           # seconds shown in the chart
-BW_DEFAULTS = {"bw_down_mbps": 0, "bw_up_mbps": 0, "bw_daily_gb": 0}   # 0 = no limit
+
+# --- Baseline: a host judged against its own history --------------------------
+BASELINE_MIN_SAMPLES = 30   # replies needed before a host has a baseline
+BASELINE_WINDOW = 300       # most recent replies used
+SPIKE_SIGMAS = 3            # a reply above mean + 3 standard deviations is a spike...
+SPIKE_FLOOR_MS = 20         # ...and also at least this far above the mean
+
+# --- Wi-Fi ------------------------------------------------------------------
+WIFI_WEAK_PCT = 40          # signal below this is weak
+
+# --- Watch mode ---------------------------------------------------------------
+WATCH_DEFAULT_MIN = 5       # minutes between checks
+WATCH_MISSES = 2            # checks a device may miss before it counts as offline (phones sleep)
+
+# Settings an administrator can change in Admin > Settings. Bandwidth limits: 0 = no limit.
+SETTING_DEFAULTS = {"bw_down_mbps": 0, "bw_up_mbps": 0, "bw_daily_gb": 0, "watch_min": WATCH_DEFAULT_MIN}
+SETTING_MINIMUMS = {"watch_min": 1}   # every other setting may be 0
 
 # --- Window ---------------------------------------------------------------
 APP_TITLE = "NetMonitor"

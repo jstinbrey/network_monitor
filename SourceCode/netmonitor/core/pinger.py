@@ -121,11 +121,27 @@ class PingSession:
     def __init__(self, ip: str):
         self.ip = ip
         self.rtts = []                    # one per echo request; None for a lost reply
+        self.history = []                 # the host's stored reply times (at most BASELINE_WINDOW), for the baseline
+        self.spikes, self.last_spike = 0, False
         self.current_outage = 0           # lost replies in a row right now (about one per second)
         self.longest_outage, self.longest_outage_at = 0, None   # the longest run so far, and when it began
         self._outage_began = None
 
+    def replies(self) -> list[float]:
+        return [rtt for rtt in self.rtts if rtt is not None]
+
+    def learned(self) -> int:
+        """Replies the baseline is built from so far: stored ones plus this session's."""
+        return len(self.history) + len(self.replies())
+
+    def baseline(self) -> tuple[float, float] | None:
+        """(mean, σ) of the host's last BASELINE_WINDOW replies, stored ones first; None while still learning."""
+        return statistics.baseline(self.history + self.replies()[-config.BASELINE_WINDOW:])
+
     def add(self, rtt: float | None):
+        base = self.baseline()            # a reply is judged against the replies before it
+        self.last_spike = rtt is not None and base is not None and statistics.is_spike(rtt, base)
+        self.spikes += self.last_spike
         self.rtts.append(rtt)
         if rtt is not None:
             self.current_outage = 0
@@ -138,7 +154,7 @@ class PingSession:
 
     def result(self) -> PingResult:
         """The session so far as one ping test, so a stored session looks like any other."""
-        return build_result(self.ip, len(self.rtts), [rtt for rtt in self.rtts if rtt is not None])
+        return build_result(self.ip, len(self.rtts), self.replies())
 
     @property
     def jitter_ms(self) -> float | None:
@@ -153,6 +169,9 @@ class PingSession:
             return "bad", f"No replies from {self.ip} in {r.sent} pings: it is offline, or it blocks ping."
         outage = (f" Longest outage: {self.longest_outage} lost in a row (about {self.longest_outage} s) "
                   f"from {self.longest_outage_at}." if self.longest_outage else " No lost replies.")
+        base = self.baseline()
+        if self.spikes:
+            outage += f" {self.spikes} slower than usual (usual {base[0]:.1f} ms)."
         slow = (r.loss_pct > config.LOSS_WARN_PCT or r.avg_ms > config.LATENCY_WARN_MS
                 or (jitter or 0) > config.JITTER_WARN_MS)
         return ("warn" if slow else "good",

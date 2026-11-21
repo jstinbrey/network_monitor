@@ -3,7 +3,7 @@ import customtkinter as ctk
 
 from netmonitor.gui import theme
 
-STEPS = ["Adapter", "Router", "Internet", "DNS"]               # the order services.diagnose tests them in
+STEPS = ["Adapter", "Wi-Fi", "Router", "Internet", "DNS"]      # the order services.diagnose tests them in
 MARKS = {True: ("✓", theme.GREEN), False: ("✗", theme.RED), None: ("–", theme.MUTED)}
 
 
@@ -22,7 +22,7 @@ class VerdictCard(ctk.CTkFrame):
         self.steps = {}
         for name in STEPS:
             self.steps[name] = ctk.CTkLabel(row, text=f"–  {name}", text_color=theme.MUTED)
-            self.steps[name].pack(side="left", padx=(0, 28))
+            self.steps[name].pack(side="left", padx=(0, 20))
         self.details = ctk.CTkLabel(body, text="", anchor="w", justify="left", wraplength=780, text_color=theme.MUTED)
         self.details.pack(fill="x")
 

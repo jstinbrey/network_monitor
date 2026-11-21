@@ -141,6 +141,20 @@ def dismiss_event(event_id: int, path=None):
         db.execute("UPDATE events SET dismissed = 1 WHERE id = ?", (event_id,))
 
 
+def add_presence(network: str, at: str, rows: list[tuple[str, bool]], path=None):
+    """One watch check: for each known MAC, whether it was found (up) or not."""
+    with closing(_connect(path)) as db, db:
+        db.executemany("INSERT INTO presence VALUES (?, ?, ?, ?)", [(network, mac, at, up) for mac, up in rows])
+
+
+def get_presence(network: str, mac: str, since: str, path=None) -> list[tuple[str, bool]]:
+    """(at, up) of every watch check of one device since an ISO time, oldest first."""
+    with closing(_connect(path)) as db:
+        rows = db.execute("SELECT at, up FROM presence WHERE network = ? AND mac = ? AND at >= ? ORDER BY at",
+                          (network, mac, since)).fetchall()
+    return [(row["at"], bool(row["up"])) for row in rows]
+
+
 def get_settings(path=None) -> dict:
     """Every saved setting as {key: value}. Settings never saved are missing: config gives their defaults."""
     with closing(_connect(path)) as db:

@@ -1,0 +1,71 @@
+ 
+Interface name : Wi-Fi 
+There are 3 networks currently visible. 
+
+SSID 1 : Neighbour1
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : aa:bb:cc:00:00:03
+         Signal             : 24%  
+         Radio type         : 802.11ax
+         Band               : 5 GHz
+         Channel            : 100 
+         Bss Load:
+             Connected Stations:         4
+             Channel Utilization:        1 (0 %)
+             Medium Available Capacity:  31250 (1000000 us/s)
+         QoS MSCS Supported    : 0
+         QoS Map Supported     : 0
+         Basic rates (Mbps) : 6 12 24
+         Other rates (Mbps) : 9 18 36 48 54
+
+SSID 2 : Neighbour2
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : aa:bb:cc:00:00:02
+         Signal             : 92%  
+         Radio type         : 802.11ax
+         Band               : 5 GHz
+         Channel            : 40 
+         Bss Load:
+             Connected Stations:         7
+             Channel Utilization:        14 (5 %)
+             Medium Available Capacity:  31250 (1000000 us/s)
+         QoS MSCS Supported    : 0
+         QoS Map Supported     : 0
+         Basic rates (Mbps) : 6 12 24
+         Other rates (Mbps) : 9 18 36 48 54
+    BSSID 2                 : aa:bb:cc:00:00:04
+         Signal             : 93%  
+         Radio type         : 802.11ax
+         Band               : 2.4 GHz
+         Channel            : 8 
+         Bss Load:
+             Connected Stations:         1
+             Channel Utilization:        44 (17 %)
+             Medium Available Capacity:  31250 (1000000 us/s)
+         QoS MSCS Supported    : 0
+         QoS Map Supported     : 0
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+
+SSID 3 : Neighbour3
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : aa:bb:cc:00:00:05
+         Signal             : 33%  
+         Radio type         : 802.11ac
+         Band               : 5 GHz
+         Channel            : 132 
+         Bss Load:
+             Connected Stations:         0
+             Channel Utilization:        1 (0 %)
+             Medium Available Capacity:  0 (0 us/s)
+         QoS MSCS Supported    : 0
+         QoS Map Supported     : 0
+         Basic rates (Mbps) : 6 12 24
+         Other rates (Mbps) : 9 18 36 48 54
+

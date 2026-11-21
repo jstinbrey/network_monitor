@@ -19,8 +19,8 @@ class LatencyChart(ctk.CTkFrame):
         self.canvas.mpl_connect("pick_event", self._picked)   # connected once; plot() only swaps the bars
         self.plot([], [], "Reply times")
 
-    def plot(self, labels, values, title, on_pick=None):
-        """Redraw the chart with one bar per label; values are in milliseconds.
+    def plot(self, labels, values, title, on_pick=None, unit="ms"):
+        """Redraw the chart with one bar per label; values are in `unit` (the y-axis label).
 
         on_pick: when given, clicking a bar calls on_pick(index of that bar in labels).
         """
@@ -28,7 +28,7 @@ class LatencyChart(ctk.CTkFrame):
         self._bars = list(self.axes.bar(labels, values, color=theme.BLUE, picker=on_pick is not None))
         self._on_pick = on_pick
         self.axes.set_title(title, color=TEXT)
-        self.axes.set_ylabel("ms", color=TEXT)
+        self.axes.set_ylabel(unit, color=TEXT)
         self.axes.set_facecolor(BACKGROUND)
         self.axes.tick_params(colors=TEXT)
         for spine in self.axes.spines.values():

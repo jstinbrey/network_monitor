@@ -1,7 +1,7 @@
-"""Connection view: this PC's download and upload rates against the limits an administrator set.
+"""Connection view: this PC's Wi-Fi link, and its download and upload rates against the limits an administrator set.
 
 The window samples the adapter once a second whichever view is showing (App._sample_bandwidth), so
-the chart already holds the last two minutes when this view is opened. Wi-Fi details come in Step 7.5.
+the chart already holds the last two minutes when this view is opened. The Wi-Fi details are read on opening.
 """
 import time
 from collections import deque
@@ -12,21 +12,39 @@ from matplotlib.figure import Figure
 
 from netmonitor import config, services
 from netmonitor.gui import theme
-from netmonitor.gui.widgets.latency_chart import BACKGROUND, TEXT
+from netmonitor.gui.widgets.latency_chart import BACKGROUND, TEXT, LatencyChart
 from netmonitor.gui.worker import run_async
 
 DOWN_COLOR, UP_COLOR = "#4da3ff", theme.GREEN     # a lighter blue than theme.BLUE, readable on the dark chart
 TILES = ["Download now", "Upload now", "Peak download (2 min)", "Used today"]
+QUALITY_COLORS = {"Excellent": theme.GREEN, "Good": theme.GREEN, "Fair": theme.AMBER, "Weak": theme.RED}
+WIFI_TEXT_WIDTH = 400
 
 
 class ConnectionView(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="transparent")
         self.app = app
-        self.limits = dict(config.BW_DEFAULTS)
+        self.limits = dict(config.SETTING_DEFAULTS)
         self.samples = deque(maxlen=config.BW_WINDOW_S)        # (time.monotonic(), down_mbps, up_mbps)
         self.last = None                                       # the latest BandwidthSample
         ctk.CTkLabel(self, text="Connection", font=theme.TITLE_FONT).pack(anchor="w", padx=theme.PAD, pady=(theme.PAD, 8))
+
+        # Wi-Fi: the link on the left, access points per channel on the right.
+        ctk.CTkLabel(self, text="Wi-Fi", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=theme.PAD)
+        wifi_row = ctk.CTkFrame(self, fg_color="transparent", height=170)
+        wifi_row.pack(fill="x", padx=theme.PAD, pady=(4, 10))
+        wifi_row.pack_propagate(False)                         # the row is 170 px; the chart shrinks to fit
+        self.nearby = LatencyChart(wifi_row)
+        self.nearby.canvas.get_tk_widget().configure(width=380)
+        self.nearby.pack(side="right", fill="y")
+        self.wifi_verdict = ctk.CTkLabel(wifi_row, text="Reading Wi-Fi...", font=("Segoe UI", 14, "bold"), anchor="w",
+                                         justify="left", wraplength=WIFI_TEXT_WIDTH, text_color=theme.MUTED)
+        self.wifi_verdict.pack(fill="x")
+        self.wifi_details = ctk.CTkLabel(wifi_row, text="", text_color=theme.MUTED, anchor="w", justify="left",
+                                         wraplength=WIFI_TEXT_WIDTH)
+        self.wifi_details.pack(fill="x", pady=(4, 0))
+
         ctk.CTkLabel(self, text="Bandwidth", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=theme.PAD)
 
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -68,9 +86,30 @@ class ConnectionView(ctk.CTkFrame):
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=theme.PAD, pady=8)
 
     def on_show(self):
-        """The limits may have changed in Admin > Settings, so they are read again each time."""
+        """The limits may have changed in Admin > Settings, and the Wi-Fi signal moves, so both are read each time."""
         run_async(services.settings, on_done=self._set_limits)
+        run_async(services.wifi_details, on_done=self._show_wifi,
+                  on_error=lambda error: self.wifi_verdict.configure(text=str(error), text_color=theme.RED))
         self._redraw()
+
+    def _show_wifi(self, details):
+        if not self.winfo_exists():
+            return
+        link, note, nearby, advice = details
+        if not link:
+            self.wifi_verdict.configure(text=note, text_color=theme.MUTED)
+            self.wifi_details.configure(text="")
+            self.nearby.plot([], [], "No Wi-Fi link", unit="access points")
+            return
+        self.wifi_verdict.configure(text=services.describe_wifi(link), text_color=QUALITY_COLORS[link.quality])
+        self.wifi_details.configure(text="\n".join(filter(None, [
+            f"Network {link.ssid}  ·  {link.radio}  ·  {link.cipher} encryption",
+            f"Link rate {link.rx_mbps:g} Mbps receive, {link.tx_mbps:g} Mbps send (agreed with the router, "
+            "not measured speed)",
+            f"{len(nearby)} access point{'' if len(nearby) == 1 else 's'} in range.", advice])))
+        channels = sorted({channel for _, channel in nearby} | {link.channel})
+        self.nearby.plot([str(c) for c in channels], [sum(c == n for _, n in nearby) for c in channels],
+                         f"Access points per channel (yours: {link.channel})", unit="access points")
 
     def _set_limits(self, limits):
         if not self.winfo_exists():

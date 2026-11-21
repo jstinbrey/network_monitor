@@ -122,6 +122,8 @@ class DeviceDetail:
     stats: HostStats
     history: list[PingResult] = field(default_factory=list)   # the last 10 tests, oldest first
     open_ports: list[dict] | None = None                      # the latest port check; None: never checked
+    presence: list[tuple[str, bool]] = field(default_factory=list)   # watch-mode checks in the last 24 h: (at, up)
+    uptime_pct: float | None = None                            # up checks / all checks; None: never watched
 
 
 @dataclass
@@ -164,6 +166,7 @@ class Measurements:
     dns_server: str | None = None            # the first DNS server Windows uses
     dns_ms: float | None = None              # its answer time
     dns_public_ms: float | None = None       # 1.1.1.1's answer time, for comparison
+    wifi: "WifiInfo | None" = None           # the Wi-Fi link; None when wired or unknown
 
 
 @dataclass
@@ -188,6 +191,26 @@ class Event:
     mac: str | None
     detail: str
     dismissed: bool = False
+
+
+@dataclass
+class WifiInfo:
+    """This PC's Wi-Fi link, from `netsh wlan show interfaces`."""
+    ssid: str
+    band: str                    # "2.4 GHz", "5 GHz" or "6 GHz"
+    channel: int
+    radio: str                   # "802.11ax" and so on
+    auth: str                    # "WPA2-Personal", "WPA3-Personal", "Open" ...
+    cipher: str                  # "CCMP" (AES), "TKIP", "WEP" or "None"
+    rx_mbps: float               # link rates the adapter agreed with the router, not measured throughput
+    tx_mbps: float
+    signal_pct: int
+    rssi_dbm: int
+
+    @property
+    def quality(self) -> str:
+        return ("Excellent" if self.signal_pct >= 80 else "Good" if self.signal_pct >= 60
+                else "Fair" if self.signal_pct >= 40 else "Weak")
 
 
 @dataclass

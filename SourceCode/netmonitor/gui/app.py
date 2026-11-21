@@ -1,7 +1,9 @@
 """Main application window: the sign-in screen, then a sidebar on the left and one view at a time on the right."""
+from datetime import datetime
+
 import customtkinter as ctk
 
-from netmonitor import config, services
+from netmonitor import config, models, services
 from netmonitor.gui import theme, worker
 from netmonitor.gui.views.admin import AdminView
 from netmonitor.gui.views.connection import ConnectionView
@@ -65,6 +67,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(sidebar, text=f"{user.username}\n{'Administrator' if user.is_admin else 'User'}",
                      text_color=theme.MUTED).pack(side="bottom")
 
+        self.watch_switches, self._watch_job, self._watch_busy = [], None, False   # views add their switches
         self.views, self.buttons = {}, {}
         for name, view_class in VIEWS + (ADMIN_VIEWS if user.is_admin else []):
             self.views[name] = view_class(self.main, self)
@@ -99,6 +102,41 @@ class App(ctk.CTk):
         if self._bw_ticks % config.BW_SAVE_EVERY_S == 0:
             run_async(services.flush_usage)       # the database write happens off the UI thread
 
+    def add_watch_switch(self, parent):
+        """A Watch switch in a view's toolbar, packed on the right. All of them show the same state."""
+        switch = ctk.CTkSwitch(parent, text="Watch", command=lambda: self.set_watch(bool(switch.get())))
+        switch.pack(side="right")
+        self.watch_switches.append(switch)
+        return switch
+
+    def set_watch(self, on):
+        """Watch mode (Admin): scan every few minutes, and raise an alert for each change."""
+        for switch in self.watch_switches:
+            switch.select() if on else switch.deselect()
+        if self._watch_job:
+            self.after_cancel(self._watch_job)
+            self._watch_job = None
+        if on:
+            services.start_watch()
+            self._watch_minutes = services.settings()["watch_min"]   # one small database read
+            self._watch_tick()                                       # the first check runs now
+
+    def _watch_tick(self):
+        self._watch_job = self.after(round(self._watch_minutes * 60_000), self._watch_tick)   # reschedule first
+        if not self._watch_busy:                  # a check still running (a slow scan) is not started twice
+            self._watch_busy = True
+            run_async(services.watch_tick, on_done=self._watched, on_error=self._watch_failed)
+
+    def _watched(self, events):
+        self._watch_busy = False
+        for event in events:
+            self.alert(event)
+
+    def _watch_failed(self, error):
+        self._watch_busy = False
+        self.alert(models.Event(None, datetime.now().isoformat(timespec="seconds"), "watch", "warning", None, None,
+                                f"A watch check failed: {error}"))   # not stored: id None, so Dismiss only hides it
+
     def alert(self, event):
         """A new event: show it in the alert bar and in the Dashboard's list."""
         if self.main:                             # not signed out while it was being stored
@@ -117,6 +155,8 @@ class App(ctk.CTk):
     def sign_out(self):
         """Stop anything still running, throw the views away, and go back to the sign-in screen."""
         self.after_cancel(self._bw_job)
+        if self._watch_job:
+            self.after_cancel(self._watch_job)
         services.flush_usage()
         services.logout()
         self.main.destroy()                           # the device panel is inside it, so it goes too

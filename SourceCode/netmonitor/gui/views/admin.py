@@ -10,7 +10,8 @@ from netmonitor.gui.worker import run_async
 
 ROLES = {"User": models.USER, "Admin": models.ADMIN}   # segmented-button label -> stored role
 FORM_WIDTH = 260
-LIMITS = {"bw_down_mbps": "Download limit (Mbps)", "bw_up_mbps": "Upload limit (Mbps)", "bw_daily_gb": "Daily cap (GB)"}
+LIMITS = {"bw_down_mbps": "Download limit (Mbps)", "bw_up_mbps": "Upload limit (Mbps)", "bw_daily_gb": "Daily cap (GB)",
+          "watch_min": "Watch every (minutes)"}
 
 
 class AdminView(ctk.CTkFrame):
@@ -45,12 +46,14 @@ class AdminView(ctk.CTkFrame):
         self.status = ctk.CTkLabel(form, text="", wraplength=FORM_WIDTH, justify="left", anchor="w")
         self.status.pack(fill="x")
 
-        # --- Settings tab. The watch interval (Step 7.6) is added here later.
+        # --- Settings tab: bandwidth limits and the watch interval, then clearing history.
         settings = tabs.add("Settings")
-        ctk.CTkLabel(settings, text="Bandwidth limits", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        ctk.CTkLabel(settings, text="Limits and watch mode", font=("Segoe UI", 14, "bold")).pack(anchor="w")
         ctk.CTkLabel(settings, text_color=theme.MUTED, justify="left", anchor="w",
                      text=f"0 means no limit. A rate above its limit for {config.BW_SUSTAIN_S} s raises an alert, "
-                          "and so do 80% and 100% of the daily cap.").pack(anchor="w", pady=(2, 8))
+                          "and so do 80% and 100% of the daily cap.\n"
+                          "Watch mode scans this often while its switch is on (Dashboard or Devices)."
+                     ).pack(anchor="w", pady=(2, 8))
         form = ctk.CTkFrame(settings, fg_color="transparent")
         form.pack(anchor="w")
         self.limits = {}
@@ -58,7 +61,7 @@ class AdminView(ctk.CTkFrame):
             ctk.CTkLabel(form, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 12), pady=3)
             self.limits[key] = ctk.CTkEntry(form, width=100)
             self.limits[key].grid(row=row, column=1, pady=3)
-        ctk.CTkButton(settings, text="Save limits", command=self.save_limits).pack(anchor="w", pady=(8, 0))
+        ctk.CTkButton(settings, text="Save settings", command=self.save_limits).pack(anchor="w", pady=(8, 0))
         self.limits_status = ctk.CTkLabel(settings, text="", anchor="w")
         self.limits_status.pack(anchor="w", pady=(4, 16))
 
@@ -83,7 +86,7 @@ class AdminView(ctk.CTkFrame):
     def save_limits(self):
         def saved(values):
             self._show_limits(values)
-            self.limits_status.configure(text="Limits saved.", text_color=theme.GREEN)
+            self.limits_status.configure(text="Settings saved.", text_color=theme.GREEN)
         run_async(services.save_settings, {key: entry.get() for key, entry in self.limits.items()}, on_done=saved,
                   on_error=lambda error: self.limits_status.configure(text=str(error), text_color=theme.RED))
 

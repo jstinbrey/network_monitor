@@ -3,9 +3,9 @@
 These are pure calculations over stored ping results; nothing here touches
 the network or the database, which keeps every formula easy to test.
 """
-from statistics import mean
+from statistics import mean, pstdev
 
-from netmonitor import models
+from netmonitor import config, models
 from netmonitor.models import Device, HostStats, NetworkSummary, PingResult
 
 
@@ -27,6 +27,21 @@ def host_stats(device: Device, results: list[PingResult]) -> HostStats:
         loss_pct=round((sent - len(rtts)) / sent * 100, 1),   # lost / sent over all runs
         status=results[-1].status,                             # the most recent test decides
     )
+
+
+def baseline(rtts: list[float]) -> tuple[float, float] | None:
+    """(mean, standard deviation) of a host's recent replies, or None until there are enough."""
+    recent = rtts[-config.BASELINE_WINDOW:]
+    if len(recent) < config.BASELINE_MIN_SAMPLES:
+        return None
+    return mean(recent), pstdev(recent)
+
+
+def is_spike(rtt: float, base: tuple[float, float]) -> bool:
+    """Above mean + 3σ, and at least 20 ms above the mean: a LAN host with σ = 0.3 ms
+    must not call a 3 ms reply a spike."""
+    mu, sigma = base
+    return rtt > max(mu + config.SPIKE_SIGMAS * sigma, mu + config.SPIKE_FLOOR_MS)
 
 
 def summary(stats: list[HostStats]) -> NetworkSummary:

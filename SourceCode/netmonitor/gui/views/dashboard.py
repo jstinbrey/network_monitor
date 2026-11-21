@@ -8,7 +8,8 @@ from netmonitor.gui.widgets.recommendation_card import SEVERITY_COLORS, Recommen
 from netmonitor.gui.widgets.verdict_card import VerdictCard
 from netmonitor.gui.worker import post, run_async
 
-CARDS = ["Devices", "Reachable", "Average latency", "Health score"]
+CARDS = ["Devices", "Reachable", "Average latency", "Health score", "Wi-Fi signal"]
+QUALITY_COLORS = {"Excellent": theme.GREEN, "Good": theme.GREEN, "Fair": theme.AMBER, "Weak": theme.RED}
 MAX_BARS = 15              # more bars than this cannot be read
 TOP_RECOMMENDATIONS = 3
 RECENT_ALERTS = 5
@@ -31,11 +32,13 @@ class DashboardView(ctk.CTkFrame):
         self.diagnose_button.pack(side="left", padx=(8, 0))
         self.status = ctk.CTkLabel(bar, text="", text_color=theme.MUTED)
         self.status.pack(side="left", padx=12)
+        if app.is_admin:                               # watch mode scans, so only an Admin gets the switch
+            app.add_watch_switch(bar)
 
         self.verdict = VerdictCard(self)
         self.verdict.pack(fill="x", padx=theme.PAD, pady=(0, 12))
 
-        # Four stat cards: a small muted title above a large value.
+        # Five stat cards: a small muted title above a large value.
         row = ctk.CTkFrame(self, fg_color="transparent")
         row.pack(fill="x", padx=theme.PAD)
         self.values = {}
@@ -123,7 +126,7 @@ class DashboardView(ctk.CTkFrame):
         self.status.configure(text=f"Scanning {done} / {total}" if done < total else "Pinging every device...")
 
     def _show(self, data):
-        summary, stats, recommendations = data
+        summary, stats, recommendations, (link, note) = data
         self.scan_button.configure(state="normal")
         self.status.configure(text="" if summary.devices else "Run a scan to begin.", text_color=theme.MUTED)
 
@@ -138,6 +141,10 @@ class DashboardView(ctk.CTkFrame):
             if not summary.devices:
                 text, color = "-", None            # no scan yet: do not show a red 0 / 100
             self.values[title].configure(text=text, text_color=color or ("gray10", "gray90"))
+        # The Wi-Fi card does not depend on a scan: wired, or the details withheld, shows a muted word.
+        self.values["Wi-Fi signal"].configure(
+            text=f"{link.signal_pct}%" if link else "Wired" if note.startswith("Not on Wi-Fi") else "-",
+            text_color=QUALITY_COLORS[link.quality] if link else theme.MUTED)
 
         replied = [s for s in stats if s.avg_ms is not None][:MAX_BARS]
         self.chart.plot(["." + s.ip.rsplit(".", 1)[1] for s in replied], [s.avg_ms for s in replied],

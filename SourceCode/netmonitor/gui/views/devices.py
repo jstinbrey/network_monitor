@@ -30,6 +30,8 @@ class DevicesView(ctk.CTkFrame):
         self.status = ctk.CTkLabel(bar, text="No devices yet. Run a scan.", text_color=theme.MUTED)
         self.status.pack(side="left")
         ctk.CTkButton(bar, text="Ping selected", command=self.ping_selected).pack(side="right")
+        if app.is_admin:                               # the same Watch switch as on the Dashboard
+            app.add_watch_switch(bar).pack_configure(padx=(0, 12))
 
         self.table = HostTable(self, [("ip", "IP Address", 125), ("hostname", "Hostname", 190),
                                       ("mac", "MAC Address", 145), ("vendor", "Vendor", 190),

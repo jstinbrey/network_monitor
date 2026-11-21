@@ -107,7 +107,11 @@ class PingView(ctk.CTkFrame):
         if not self.winfo_exists() or not self.handle or session is not self.handle.session:
             return                                  # signed out, or a last line that came after Stop
         self.replies += 1
-        self.ecg.add(self.replies, rtt)
+        self.ecg.add(self.replies, rtt, session.last_spike)
+        base = session.baseline()
+        self.ecg.note.configure(text=f"Usual for this host: {base[0]:.1f} ms ± {base[1]:.1f} ms  ·  "
+                                     f"{session.spikes} slower than usual (amber)" if base else
+                                f"Learning baseline ({session.learned()}/{config.BASELINE_MIN_SAMPLES})")
         self._log(line)
         r, jitter = session.result(), session.jitter_ms
         times = f"min {r.min_ms:g} / avg {r.avg_ms:g} / max {r.max_ms:g} ms" if r.received else "no replies yet"

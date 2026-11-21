@@ -8,16 +8,17 @@ import math
 import socket
 import threading
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from netmonitor import config, models, store
 from netmonitor.core import (advisor, auth, bandwidth, diagnosis, discovery, netinfo, pinger, ports, report_builder,
-                             statistics, tracer, vendor)
+                             statistics, tracer, vendor, watch, wifi)
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
 hop_segment = tracer.segment              # traceroute: "your router", "ISP access network" or "internet"
 describe_bandwidth = bandwidth.describe   # the Connection view's verdict line
+describe_wifi = wifi.describe             # "Excellent signal (92%, -43 dBm) on 5 GHz channel 40, WPA2-Personal"
 rate_text = bandwidth.rate_text           # "12.4 Mbps", or "350 kbps" below 1 Mbps
 
 
@@ -94,6 +95,14 @@ def start_continuous_ping(ip, on_reply):
         session.add(rtt)
         on_reply(session, rtt, line)
 
+    def load_history():                           # the network id takes about 0.2 s, so not on the UI thread
+        try:
+            pings = store.get_pings(session.ip, _network_id(netinfo.get_network_info()))
+        except RuntimeError:                      # not connected: the session learns from its own replies
+            return
+        session.history = [rtt for p in pings for rtt in p.rtts_ms][-config.BASELINE_WINDOW:]
+
+    threading.Thread(target=load_history, daemon=True).start()
     handle = pinger.ContinuousPing(ip, reply)
     handle.session = session
     _running.add(handle)
@@ -155,6 +164,11 @@ def diagnose(on_step=None):
     adapter = netinfo.get_adapter(m.local_ip) if info else None
     usable = info is not None and not m.local_ip.startswith("169.254.")
     step("Adapter", usable, f"{adapter}, {m.local_ip}" if info else "no address")
+    m.wifi, note = wifi_link()
+    if m.wifi:
+        step("Wi-Fi", m.wifi.signal_pct >= config.WIFI_WEAK_PCT, f"{m.wifi.signal_pct}%, {m.wifi.band}")
+    else:
+        step("Wi-Fi", None, "not used" if note.startswith("Not on Wi-Fi") else "no details")
     if usable and info.gateway:
         results = pinger.ping_many([info.gateway, *config.INTERNET_TARGETS], config.DIAG_PINGS)
         m.gateway, *internet = [statistics.host_stats(models.Device(ip=r.ip), [r]) for r in results]
@@ -202,8 +216,10 @@ def device_detail(ip):
     network, devices = _current()
     device = next((d for d in devices if d.ip == ip), None) or models.Device(ip=ip)   # pinged but never scanned
     pings = store.get_pings(ip, network)
+    since = (datetime.now() - timedelta(hours=24)).isoformat(timespec="seconds")
+    presence = store.get_presence(network, device.mac, since) if device.mac else []
     return models.DeviceDetail(device, statistics.host_stats(device, pings), pings[-10:],
-                               store.get_port_checks(network).get(ip))
+                               store.get_port_checks(network).get(ip), presence, watch.uptime_pct(presence))
 
 
 def set_alias(ip, name):
@@ -231,13 +247,48 @@ def _live():
     return info, arp, network, _with_vendor(store.get_devices(network))
 
 
+def _baselines(devices, network):
+    """{ip: (latest test's average, baseline of every earlier reply)} for the "slower than usual" rule."""
+    found = {}
+    for device in devices:
+        pings = store.get_pings(device.ip, network)
+        if pings and pings[-1].avg_ms is not None:
+            found[device.ip] = (pings[-1].avg_ms, statistics.baseline([r for p in pings[:-1] for r in p.rtts_ms]))
+    return found
+
+
+def _advice(info, arp, network, devices, host_stats, link):
+    return advisor.recommend(devices, host_stats, arp, info.gateway, store.get_port_checks(network),
+                             _baselines(devices, network), link)
+
+
+def wifi_link():
+    """(this PC's WifiInfo or None, a note saying why there is none)."""
+    try:
+        link = wifi.read()
+    except wifi.WifiUnavailable as error:
+        return None, str(error)
+    return link, "" if link else "Not on Wi-Fi: this PC is wired or not connected."
+
+
+def wifi_details():
+    """Connection view: (WifiInfo or None, note, nearby access points as (band, channel), advice line)."""
+    link, note = wifi_link()
+    nearby = wifi.nearby() if link else []
+    advice = ""
+    if link and link.band == "2.4 GHz" and wifi.best_24ghz_channel(nearby) != link.channel:
+        advice = (f"Channel {wifi.best_24ghz_channel(nearby)} is the least crowded of 1, 6 and 11, the 2.4 GHz "
+                  "channels that do not overlap: set it in the router.")
+    return link, note, nearby, advice
+
+
 def generate_report(fmt):
     """Feature 4: write a report of the current network state; returns the file's path."""
     info, arp, network, devices = _live()
     host_stats = _stats(devices, network)
     return report_builder.build({
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
-        "recommendations": advisor.recommend(devices, host_stats, arp, info.gateway, store.get_port_checks(network)),
+        "recommendations": _advice(info, arp, network, devices, host_stats, wifi_link()[0]),
         "pings": [ping for device in devices for ping in store.get_pings(device.ip, network)[-1:]],   # latest per device
     }, fmt)
 
@@ -248,11 +299,11 @@ def reports():
 
 
 def dashboard():
-    """Dashboard: the network summary, per-host statistics, and recommendations in one call."""
+    """Dashboard: the network summary, per-host statistics, recommendations and the Wi-Fi link in one call."""
     info, arp, network, devices = _live()
     host_stats = _stats(devices, network)
-    recs = advisor.recommend(devices, host_stats, arp, info.gateway, store.get_port_checks(network))
-    return statistics.summary(host_stats), host_stats, recs
+    link = wifi_link()
+    return statistics.summary(host_stats), host_stats, _advice(info, arp, network, devices, host_stats, link[0]), link
 
 
 def recommendations():
@@ -293,10 +344,11 @@ def clear_history():
 
 
 # --- Events (alerts) ---------------------------------------------------------
-def record_event(kind, severity, ip, mac, detail):
-    """Store something that happened, e.g. a bandwidth limit passed; returns it with its id, for the alert bar."""
+def record_event(kind, severity, ip, mac, detail, network=None):
+    """Store something that happened, e.g. a bandwidth limit passed; returns it with its id, for the alert bar.
+    network: the network id when the caller already knows it (working it out takes about 0.2 s)."""
     event = models.Event(None, datetime.now().isoformat(timespec="seconds"), kind, severity, ip, mac, detail)
-    event.id = store.add_event(_network_id(netinfo.get_network_info()), event)
+    event.id = store.add_event(network or _network_id(netinfo.get_network_info()), event)
     return event
 
 
@@ -320,18 +372,22 @@ _unsaved_lock = threading.Lock()                # bandwidth_sample (UI thread) a
 
 def settings():
     """The saved settings, with the default for any never saved."""
-    return config.BW_DEFAULTS | store.get_settings()
+    return config.SETTING_DEFAULTS | store.get_settings()
 
 
 def save_settings(values):
-    """Admin: save the bandwidth limits from {key: text}. Each must be a number of 0 or more (0 = no limit)."""
+    """Admin: save settings from {key: text}. Each must be a number of 0 or more (0 = no limit);
+    the watch interval at least 1 minute."""
     require_admin()
     try:
-        clean = {key: float(text) for key, text in values.items() if key in config.BW_DEFAULTS}
+        clean = {key: float(text) for key, text in values.items() if key in config.SETTING_DEFAULTS}
     except ValueError:
         clean = {}
-    if not values or len(clean) != len(values) or not all(value >= 0 for value in clean.values()):   # NaN fails >= 0
-        raise ValueError("Each limit must be a number of 0 or more (0 means no limit).")
+    # `value >= minimum` is also False for NaN.
+    if not values or len(clean) != len(values) or \
+            not all(value >= config.SETTING_MINIMUMS.get(key, 0) for key, value in clean.items()):
+        raise ValueError("Each limit must be a number of 0 or more (0 means no limit), "
+                         "and the watch interval at least 1 minute.")
     store.save_settings(clean)
     _limits.update(settings())                  # the monitor uses the new limits from its next sample
     return dict(_limits)
@@ -381,6 +437,55 @@ def flush_usage():
     if recv or sent:
         # shortcut: bytes counted just before midnight and saved just after go to the new day (at most 10 s of traffic).
         store.add_usage(date.today().isoformat(), recv, sent)
+
+
+# --- Watch mode -------------------------------------------------------------
+_watch = watch.WatchState()
+
+
+def start_watch():
+    """Admin: start watch mode afresh. Its first check only records who is present."""
+    global _watch
+    require_admin()
+    _watch = watch.WatchState()
+
+
+def watch_tick():
+    """Admin, one watch-mode check: scan, ping the router, store the changes as events, and return them.
+
+    Also stores a presence row (up or down) for every known device, for its uptime.
+    """
+    found = scan()                                # checks the admin role and stores the scan
+    network = _network_id(netinfo.get_network_info(), {d.ip: d.mac for d in found if d.mac})
+    stored = {d.mac: d for d in _with_vendor(store.get_devices(network)) if d.mac}   # includes devices that left
+    gateway = next((d for d in found if d.is_gateway), None)
+    events = []
+
+    def add(kind, severity, device, ip, detail):
+        events.append(record_event(kind, severity, ip, device and device.mac, detail, network))
+
+    seen = {d.mac: d.ip for d in found if d.mac}
+    for kind, mac, ip in _watch.update(seen, {d.mac for d in found if d.mac and d.known}, gateway and gateway.mac):
+        device = stored.get(mac)
+        name = ", ".join(filter(None, [device.alias or device.hostname, ip or device.ip, device.vendor])) \
+            if device else mac
+        add(kind, watch.SEVERITY[kind], device, gateway.ip if kind == "gateway-mac-changed" else ip, {
+            "new-device": f"New device joined: {name}.",
+            "back-online": f"Back online: {name}.",
+            "offline": f"Went offline: {name}.",
+            "gateway-mac-changed": f"The router's MAC address changed to {mac}: a new router, or ARP spoofing.",
+        }[kind])
+
+    if gateway:                                   # the router judged against its own history (Step 7.4)
+        base = statistics.baseline([rtt for p in store.get_pings(gateway.ip, network) for rtt in p.rtts_ms])
+        result = run_ping(gateway.ip, config.DIAG_PINGS)
+        if result.avg_ms is not None and base and statistics.is_spike(result.avg_ms, base):
+            add("spike", "warning", gateway, gateway.ip,
+                f"The router answered in {result.avg_ms:g} ms against a usual {base[0]:.1f} ms.")
+
+    store.add_presence(network, datetime.now().isoformat(timespec="seconds"),
+                       [(mac, mac in seen) for mac, device in stored.items() if device.known])
+    return events
 
 
 # --- Accounts and roles ----------------------------------------------------

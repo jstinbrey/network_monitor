@@ -51,6 +51,15 @@ PASSWORD_MIN_LEN = 8
 LOGIN_MAX_FAILURES = 5      # wrong passwords in a row before sign-in pauses
 LOGIN_LOCK_S = 30
 
+# --- Diagnosis ------------------------------------------------------------
+DIAG_PINGS = 10             # pings to the router and to each internet target
+INTERNET_TARGETS = ("1.1.1.1", "8.8.8.8")   # Cloudflare and Google: both answer ping and DNS
+DNS_TEST_NAME = "example.com"
+DNS_TIMEOUT_S = 2
+GATEWAY_SLOW_MS = 50        # a router this slow to answer means a poor Wi-Fi or LAN link
+INTERNET_SLOW_MS = 150
+DNS_SLOW_MS = 300
+
 # --- Window ---------------------------------------------------------------
 APP_TITLE = "NetMonitor"
 WINDOW_SIZE = "1180x720"

@@ -52,6 +52,14 @@ def get_netmask(ip: str) -> str | None:
     return None
 
 
+def get_adapter(ip: str) -> str | None:
+    """Return the name of the adapter that owns `ip`, e.g. "Wi-Fi", or None."""
+    for name, addresses in psutil.net_if_addrs().items():
+        if any(a.family == socket.AF_INET and a.address == ip for a in addresses):
+            return name
+    return None
+
+
 def get_mac(ip: str) -> str | None:
     """Return the MAC address of the adapter that owns `ip`, or None."""
     for addresses in psutil.net_if_addrs().values():

@@ -145,3 +145,33 @@ class Recommendation:
     title: str
     detail: str
     action: str
+
+
+@dataclass
+class DiagnosisStep:
+    """Diagnosis: one layer tested."""
+    name: str                    # "Adapter", "Router", "Internet" or "DNS"
+    ok: bool | None              # True: it answered; None: not tested
+    detail: str                  # e.g. "3.2 ms"
+
+
+@dataclass
+class Measurements:
+    """Diagnosis input: what was measured, layer by layer. None: not measured, or no answer."""
+    local_ip: str | None = None
+    gateway: HostStats | None = None         # DIAG_PINGS pings to the router
+    internet: HostStats | None = None        # the better of the two internet targets
+    dns_server: str | None = None            # the first DNS server Windows uses
+    dns_ms: float | None = None              # its answer time
+    dns_public_ms: float | None = None       # 1.1.1.1's answer time, for comparison
+
+
+@dataclass
+class Verdict:
+    """Diagnosis result: where the problem is, the numbers that show it, and what to do."""
+    status: str                  # "good", "warn" or "bad" (the theme.TAG_COLORS keys)
+    where: str                   # "This PC", "Wi-Fi / LAN", "Router", "ISP", "DNS" or "None"
+    headline: str
+    evidence: list[str]          # every line quotes measured numbers, so it can be checked
+    action: str
+    layer: str                   # OSI layer(s), e.g. "1–2", "3", "7"

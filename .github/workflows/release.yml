@@ -1,0 +1,55 @@
+# Builds NetMonitor.exe and publishes it on a GitHub Release whenever a version tag is pushed:
+#   git tag -a v0.7.0 -m "NetMonitor 0.7.0"  then  git push origin v0.7.0
+# A tag with a suffix (v0.7.0-rc.1) makes a pre-release, for trying a build before the real one.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write                 # lets the workflow create the release and upload the zip
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: SourceCode
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Check the tag matches config.VERSION
+        shell: bash
+        run: |
+          version=$(python -c "from netmonitor import config; print(config.VERSION)")
+          case "$GITHUB_REF_NAME" in
+            "v$version" | "v$version"-*) echo "Building NetMonitor $version" ;;
+            *) echo "::error::Tag $GITHUB_REF_NAME does not match config.VERSION ($version)"; exit 1 ;;
+          esac
+
+      - name: Install packages
+        run: python -m pip install -r requirements.txt pyinstaller==6.22.3
+
+      - name: Run the tests
+        run: python -m pytest -q
+
+      - name: Build NetMonitor.exe
+        run: pyinstaller --noconfirm --onedir --windowed --name NetMonitor --collect-all customtkinter --add-data "netmonitor/templates;netmonitor/templates" --add-data "netmonitor/resources;netmonitor/resources" main.py
+
+      - name: Zip it
+        run: Compress-Archive -Path dist/NetMonitor -DestinationPath "NetMonitor-$env:GITHUB_REF_NAME-windows.zip"
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: SourceCode/NetMonitor-${{ github.ref_name }}-windows.zip
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            **Download** `NetMonitor-${{ github.ref_name }}-windows.zip` below, unzip it, and run `NetMonitor\NetMonitor.exe`. Windows 10 or 11; nothing else to install.
+            Windows SmartScreen may warn because the app is not signed: choose **More info**, then **Run anyway**.
+            History and reports are kept in `%LOCALAPPDATA%\NetMonitor`, so a newer version finds them.

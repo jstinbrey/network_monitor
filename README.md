@@ -20,7 +20,13 @@ Also included: a dashboard with a 0 to 100 network health score, and SQLite stor
 
 ![Ping view with reply times and a latency chart](Documentation/screenshots/ping_view.png)
 
-## Quick start
+## Download
+
+Get `NetMonitor-vX.Y.Z-windows.zip` from the [latest release](https://github.com/jstinbrey/network_monitor/releases/latest), unzip it, and run `NetMonitor\NetMonitor.exe`. It needs **Windows 10 or 11** and nothing else: Python is built in.
+
+Windows SmartScreen may warn that the app is unrecognised, because it is not signed: choose *More info*, then *Run anyway*. The history and reports are kept in `%LOCALAPPDATA%\NetMonitor`, so a newer version finds them.
+
+## Run from source
 
 Requires **Windows 10 or 11** and **Python 3.11+**. Administrator rights are not needed.
 
@@ -99,6 +105,22 @@ SourceCode/
   tests/            pytest suite
 Documentation/      progress report, diagrams, screenshots
 ```
+
+## Making a release
+
+Versions are `0.<phase>.<fix>` while the build plan runs, and `1.0.0` is the submitted build. The number lives in one place, `VERSION` in `SourceCode/netmonitor/config.py`, and shows in the title bar.
+
+1. Set `VERSION` (for example `"0.7.0"`), commit, and push.
+2. Tag that commit and push the tag:
+
+   ```powershell
+   git tag -a v0.7.0 -m "NetMonitor 0.7.0"
+   git push origin v0.7.0
+   ```
+
+3. GitHub Actions (`.github/workflows/release.yml`) checks that the tag matches `VERSION`, runs the tests, builds `NetMonitor.exe` with PyInstaller, and publishes it on the Releases page (about 5 minutes; progress is on the Actions tab).
+
+A tag with a suffix, such as `v0.7.0-rc.1`, makes a pre-release: use it to try a build before the real one.
 
 ## Known limitations
 

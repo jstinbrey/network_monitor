@@ -4,12 +4,22 @@ Every tunable number in the application lives here so that the behaviour of
 the scanner, the ping tests, and the security rules can be changed (and cited
 in the documentation) from a single place.
 """
+import os
+import sys
 from pathlib import Path
 
+# --- Version ----------------------------------------------------------------
+# 0.<phase>.<fix> while the build plan runs; 1.0.0 is the submitted build.
+# Pushing the tag v + VERSION builds NetMonitor.exe and publishes it (README.md, "Making a release").
+VERSION = "0.7.0"
+
 # --- File locations -------------------------------------------------------
+FROZEN = getattr(sys, "frozen", False)                 # True when running as NetMonitor.exe (PyInstaller)
 BASE_DIR = Path(__file__).resolve().parent.parent      # the SourceCode/ folder
-DB_PATH = BASE_DIR / "data" / "netmonitor.db"          # SQLite history
-OUTPUT_DIR = BASE_DIR / "output"                       # generated reports
+# The .exe keeps its history and reports in AppData: a newer version, unzipped to a new folder, still finds them.
+DATA_DIR = Path(os.environ["LOCALAPPDATA"]) / "NetMonitor" if FROZEN else BASE_DIR
+DB_PATH = DATA_DIR / "data" / "netmonitor.db"          # SQLite history
+OUTPUT_DIR = DATA_DIR / "output"                       # generated reports
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 OUI_PATH = Path(__file__).resolve().parent / "resources" / "oui.csv"   # IEEE MAC vendor registry
 

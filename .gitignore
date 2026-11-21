@@ -5,6 +5,7 @@ __pycache__/
 .pytest_tmp/
 build/
 dist/
+*.spec
 
 # Created by the application: the SQLite history and the generated reports
 SourceCode/data/*.db

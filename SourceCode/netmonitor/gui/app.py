@@ -31,7 +31,7 @@ class App(ctk.CTk):
         theme.style_tables()
         worker.start_pump(self)
 
-        self.title(config.APP_TITLE)
+        self.title(f"{config.APP_TITLE} {config.VERSION}")
         self.geometry(config.WINDOW_SIZE)
         self.minsize(*config.MIN_WINDOW_SIZE)
         self.grid_columnconfigure(0, weight=1)

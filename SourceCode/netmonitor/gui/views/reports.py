@@ -13,9 +13,11 @@ class ReportsView(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="transparent")
         ctk.CTkLabel(self, text="Reports", font=theme.TITLE_FONT).pack(anchor="w", padx=theme.PAD, pady=(theme.PAD, 8))
-        ctk.CTkLabel(self, anchor="w", text_color=theme.MUTED,
-                     text="A report contains the date and time, the devices detected, the latest ping results, "
-                          "the network performance summary, and the security recommendations.").pack(fill="x", padx=theme.PAD)
+        ctk.CTkLabel(self, anchor="w", justify="left", wraplength=900, text_color=theme.MUTED,
+                     text="A report contains the date and time, the last diagnosis, the Wi-Fi link and today's data use, "
+                          "the devices detected with their open ports, the latest ping results, the network "
+                          "performance summary, the security recommendations, and the recent alerts."
+                     ).pack(fill="x", padx=theme.PAD)
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD, pady=12)

@@ -142,12 +142,16 @@ def start_traceroute(target, on_hop, on_done):
     return trace
 
 
+_last_verdict = None                  # (time, Verdict) of the latest diagnosis, for the report
+
+
 def diagnose(on_step=None):
     """Find where a network problem is, one layer at a time: this PC, the router, the internet, DNS.
 
     on_step(DiagnosisStep) is called after each layer, from this worker thread, so the card fills in live.
     The router and both internet targets are pinged in parallel, so it takes about DIAG_PINGS seconds.
     """
+    global _last_verdict
     def step(name, ok, detail):
         if on_step:
             on_step(models.DiagnosisStep(name, ok, detail))
@@ -180,7 +184,9 @@ def diagnose(on_step=None):
         m.dns_ms = diagnosis.dns_query(m.dns_server) if m.dns_server else None
         m.dns_public_ms = diagnosis.dns_query(diagnosis.PUBLIC_DNS)
         step("DNS", m.dns_ms is not None, "no answer" if m.dns_ms is None else f"{m.dns_ms:g} ms")
-    return diagnosis.verdict(m)
+    verdict = diagnosis.verdict(m)
+    _last_verdict = (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), verdict)
+    return verdict
 
 
 def devices():
@@ -262,6 +268,26 @@ def _advice(info, arp, network, devices, host_stats, link):
                              _baselines(devices, network), link)
 
 
+def map_data(update=None):
+    """Map view: (devices, {ip: HostStats}, IPs with a finding) for the network this PC is on now.
+
+    update: "ping" pings every known device first; "scan" (Admin) scans for devices first, then pings them.
+    A finding is a security one: a risky open port, or the device's MAC answering for several IPs in the live
+    ARP table. Offline and slow devices already show in their node and link colours; new ones have a red ring.
+    """
+    if update == "scan":
+        scan()
+    if update:
+        refresh_all()
+    info, arp, network, devices = _live()
+    host_stats = _stats(devices, network)
+    recs = _advice(info, arp, network, devices, host_stats, None)
+    macs = list(arp.values())
+    issues = {r.host for r in recs if r.category == "Open ports" and r.severity != "info"}   # not the router's HTTP note
+    issues |= {ip for ip, mac in arp.items() if macs.count(mac) > 1}
+    return devices, {s.ip: s for s in host_stats}, issues
+
+
 def wifi_link():
     """(this PC's WifiInfo or None, a note saying why there is none)."""
     try:
@@ -286,10 +312,15 @@ def generate_report(fmt):
     """Feature 4: write a report of the current network state; returns the file's path."""
     info, arp, network, devices = _live()
     host_stats = _stats(devices, network)
+    link, note = wifi_link()
+    diagnosed_at, verdict = _last_verdict or ("", None)
     return report_builder.build({
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
-        "recommendations": _advice(info, arp, network, devices, host_stats, wifi_link()[0]),
+        "recommendations": _advice(info, arp, network, devices, host_stats, link),
         "pings": [ping for device in devices for ping in store.get_pings(device.ip, network)[-1:]],   # latest per device
+        "verdict": verdict, "diagnosed_at": diagnosed_at, "ports": store.get_port_checks(network),
+        "events": store.get_events(network, 10), "wifi": wifi.describe(link) if link else note,
+        "usage_bytes": usage_today(),
     }, fmt)
 
 
@@ -437,6 +468,12 @@ def flush_usage():
     if recv or sent:
         # shortcut: bytes counted just before midnight and saved just after go to the new day (at most 10 s of traffic).
         store.add_usage(date.today().isoformat(), recv, sent)
+
+
+def usage_today():
+    """Bytes this PC received and sent today: the saved total plus what the monitor counted since."""
+    day = date.today().isoformat()
+    return _today["bytes"] if _today["day"] == day else store.get_usage(day)
 
 
 # --- Watch mode -------------------------------------------------------------

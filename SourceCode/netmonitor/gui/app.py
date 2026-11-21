@@ -10,6 +10,7 @@ from netmonitor.gui.views.connection import ConnectionView
 from netmonitor.gui.views.dashboard import DashboardView
 from netmonitor.gui.views.devices import DevicesView
 from netmonitor.gui.views.login import LoginView
+from netmonitor.gui.views.map import MapView
 from netmonitor.gui.views.ping import PingView
 from netmonitor.gui.views.reports import ReportsView
 from netmonitor.gui.views.security import SecurityView
@@ -19,9 +20,9 @@ from netmonitor.gui.widgets.alert_bar import AlertBar
 from netmonitor.gui.widgets.device_panel import DevicePanel
 from netmonitor.gui.worker import run_async
 
-VIEWS = [("Dashboard", DashboardView), ("Devices", DevicesView), ("Ping", PingView), ("Traceroute", TracerouteView),
-         ("Connection", ConnectionView), ("Statistics", StatisticsView), ("Reports", ReportsView),
-         ("Security", SecurityView)]   # sidebar order; the first one opens after sign-in
+VIEWS = [("Dashboard", DashboardView), ("Devices", DevicesView), ("Map", MapView), ("Ping", PingView),
+         ("Traceroute", TracerouteView), ("Connection", ConnectionView), ("Statistics", StatisticsView),
+         ("Reports", ReportsView), ("Security", SecurityView)]   # sidebar order; the first one opens after sign-in
 ADMIN_VIEWS = [("Admin", AdminView)]   # built only for administrators, so a User's window never contains them
 
 

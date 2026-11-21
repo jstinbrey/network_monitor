@@ -93,3 +93,10 @@ def test_limits_are_admin_only_and_must_be_numbers_of_0_or_more(fresh, monkeypat
             services.save_settings(bad)
     assert services.save_settings({"bw_down_mbps": " 20 ", "bw_daily_gb": "5"}) == LIMITS | {"watch_min": 5}
     assert services._limits == LIMITS | {"watch_min": 5}                                   # the monitor uses them at once
+
+
+def test_usage_today_includes_the_bytes_not_saved_yet(fresh):
+    store.add_usage(date.today().isoformat(), 1000, 0)
+    assert services.usage_today() == 1000                     # the monitor has not counted anything yet
+    samples = run(fresh, 3, 500)
+    assert services.usage_today() == 1000 + 2 * 500 == samples[-1].today_bytes   # nothing flushed yet

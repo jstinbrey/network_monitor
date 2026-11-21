@@ -15,6 +15,8 @@
   .cards { display: flex; gap: 12px; flex-wrap: wrap; }
   .card { border: 1px solid #c8c8c8; border-radius: 6px; padding: 10px 16px; min-width: 130px; }
   .card b { display: block; font-size: 22px; }
+  .good { color: #2f8a5f; } .warn { color: #b7791f; } .bad { color: #c0392b; }
+  .dismissed td { color: #888; }
 </style>
 </head>
 <body>
@@ -26,15 +28,29 @@
   Host: {{ info.hostname }} ({{ info.local_ip }}) &nbsp;|&nbsp;
   Network: {{ info.cidr }} ({{ info.first_host }} to {{ info.last_host }}) &nbsp;|&nbsp;
   Gateway: {{ info.gateway or "none" }}
+  {% if wifi %}<br>Wi-Fi: {{ wifi }}{% endif %}
+  {% if usage_bytes is not none %}<br>Data used today by this PC: {{ "%.2f" | format(usage_bytes / 1e9) }} GB{% endif %}
 </p>
+
+<h2>Diagnosis</h2>
+{% if verdict %}
+<p class="{{ verdict.status }}"><b>{{ verdict.headline }}</b> &nbsp;<span class="meta">(run at {{ diagnosed_at }})</span></p>
+<ul>
+  {% for line in verdict.evidence %}<li>{{ line }}</li>{% endfor %}
+</ul>
+<p>Recommended: {{ verdict.action }} &nbsp;(OSI layer {{ verdict.layer }})</p>
+{% else %}
+<p>Diagnosis not run in this session.</p>
+{% endif %}
 
 <h2>Devices Detected ({{ devices | length }})</h2>
 {% if devices %}
 <table>
-  <tr><th>IP Address</th><th>Hostname</th><th>MAC Address</th><th>Vendor</th><th>Status</th><th>Last Seen</th></tr>
+  <tr><th>IP Address</th><th>Hostname</th><th>MAC Address</th><th>Vendor</th><th>Status</th><th>Open Ports</th><th>Last Seen</th></tr>
   {% for d in devices %}
   <tr><td>{{ d.ip }}</td><td>{{ d.hostname }}</td><td>{{ d.mac or "-" }}</td><td>{{ d.vendor }}</td>
-      <td>{{ "Online" if d.replied_icmp else "No ICMP reply (host up)" }}</td><td>{{ d.last_seen }}</td></tr>
+      <td>{{ "Online" if d.replied_icmp else "No ICMP reply (host up)" }}</td><td>{{ ports.get(d.ip) | ports }}</td>
+      <td>{{ d.last_seen }}</td></tr>
   {% endfor %}
 </table>
 {% else %}
@@ -85,6 +101,19 @@
   <tr><td>{{ r.severity | capitalize }}</td><td>{{ r.title }}</td><td>{{ r.detail }}</td><td>{{ r.action }}</td></tr>
   {% endfor %}
 </table>
+{% endif %}
+
+<h2>Recent Alerts</h2>
+{% if events %}
+<table>
+  <tr><th>Time</th><th>Severity</th><th>Alert</th><th>Device</th><th>Status</th></tr>
+  {% for e in events %}
+  <tr{% if e.dismissed %} class="dismissed"{% endif %}><td>{{ e.at | replace("T", " ") }}</td><td>{{ e.severity | capitalize }}</td>
+      <td>{{ e.detail }}</td><td>{{ e.ip or "-" }}</td><td>{{ "Dismissed" if e.dismissed else "New" }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No alerts recorded on this network.</p>
 {% endif %}
 
 </body>

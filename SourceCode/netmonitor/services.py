@@ -8,7 +8,7 @@ import math
 import time
 
 from netmonitor import config, models, store
-from netmonitor.core import advisor, auth, discovery, netinfo, pinger, report_builder, statistics, vendor
+from netmonitor.core import advisor, auth, discovery, netinfo, pinger, ports, report_builder, statistics, vendor
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
@@ -104,17 +104,25 @@ def history(ip, limit=10):
 
 
 def device_detail(ip):
-    """Device panel: one device, its statistics and its last 10 ping tests."""
+    """Device panel: one device, its statistics, its last 10 ping tests and its latest port check."""
     network, devices = _current()
     device = next((d for d in devices if d.ip == ip), None) or models.Device(ip=ip)   # pinged but never scanned
     pings = store.get_pings(ip, network)
-    return models.DeviceDetail(device, statistics.host_stats(device, pings), pings[-10:])
+    return models.DeviceDetail(device, statistics.host_stats(device, pings), pings[-10:],
+                               store.get_port_checks(network).get(ip))
 
 
 def set_alias(ip, name):
     """Admin: give a device a name that is shown instead of its hostname. An empty name removes it."""
     require_admin()
     store.set_alias(ip, name.strip()[:config.ALIAS_MAX_LEN], _network_id(netinfo.get_network_info()))
+    return device_detail(ip)
+
+
+def check_ports(ip):
+    """Admin, Feature 5 bonus: which common TCP ports a device has open. The result is kept for the advisor."""
+    require_admin()
+    store.save_port_check(ip, ports.check_ports(ip), _network_id(netinfo.get_network_info()))
     return device_detail(ip)
 
 
@@ -135,7 +143,7 @@ def generate_report(fmt):
     host_stats = _stats(devices, network)
     return report_builder.build({
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
-        "recommendations": advisor.recommend(devices, host_stats, arp, info.gateway),
+        "recommendations": advisor.recommend(devices, host_stats, arp, info.gateway, store.get_port_checks(network)),
         "pings": [ping for device in devices for ping in store.get_pings(device.ip, network)[-1:]],   # latest per device
     }, fmt)
 
@@ -149,7 +157,8 @@ def dashboard():
     """Dashboard: the network summary, per-host statistics, and recommendations in one call."""
     info, arp, network, devices = _live()
     host_stats = _stats(devices, network)
-    return statistics.summary(host_stats), host_stats, advisor.recommend(devices, host_stats, arp, info.gateway)
+    recs = advisor.recommend(devices, host_stats, arp, info.gateway, store.get_port_checks(network))
+    return statistics.summary(host_stats), host_stats, recs
 
 
 def recommendations():

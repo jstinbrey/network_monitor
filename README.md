@@ -53,6 +53,8 @@ flowchart LR
 4. **Reports**: click *Generate report*.
 5. **Security**: read the recommendations, most severe first.
 
+An administrator can also check a device for open ports from its panel (*Check ports*). Only check devices on a network you own or administer.
+
 ## How it works
 
 The app has three layers. The interface never runs network code itself; it calls the services layer in a background thread, so the window stays responsive during a scan.

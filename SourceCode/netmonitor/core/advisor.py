@@ -41,10 +41,12 @@ def _arp_findings(arp, gateway, add):
 
 
 def recommend(devices: list[Device], stats: list[HostStats],
-              arp: dict[str, str] | None = None, gateway: str | None = None) -> list[Recommendation]:
+              arp: dict[str, str] | None = None, gateway: str | None = None,
+              ports: dict[str, list] | None = None) -> list[Recommendation]:
     """Every recommendation for the network, most severe first.
 
     arp: the live {ip: mac} table, and gateway: the gateway's IP. With them, ARP spoofing is checked too.
+    ports: {ip: open ports} from the stored port checks.
     """
     by_ip = {s.ip: s for s in stats}
     found = []
@@ -86,6 +88,17 @@ def recommend(devices: list[Device], stats: list[HostStats],
             add("info", "Performance", d, f"High jitter on {name}",
                 f"Reply times vary by {s.jitter_ms:g} ms on average.",
                 "Expect poor voice and video call quality on this device.")
+        open_ports = (ports or {}).get(d.ip, [])
+        risky = [p for p in open_ports if p["risk"] == "high"]
+        if risky:
+            add("critical", "Open ports", d,
+                f"Risky port open on {name}: " + ", ".join(f"{p['service']} ({p['port']})" for p in risky),
+                "These services send logins unencrypted or are common targets for worms and password guessing.",
+                "Turn the service off if it is not needed, or block the port in the device's firewall.")
+        if d.is_gateway and any(p["port"] == 80 for p in open_ports):
+            add("info", "Open ports", d, "The router's admin page uses unencrypted HTTP",
+                "Port 80 is open on the gateway, so its admin password crosses the network in plain text.",
+                "Use the router's HTTPS admin page if it has one, and do not open it over public Wi-Fi.")
         if s and s.status == models.NO_ICMP:
             add("info", "Firewall", d, f"{name} does not answer ping",
                 "The device is up (it answers ARP) but its firewall drops ICMP echo requests.",

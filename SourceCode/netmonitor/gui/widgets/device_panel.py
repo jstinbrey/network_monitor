@@ -17,6 +17,16 @@ def tags(device):
                                          ("New", not device.known)) if on)
 
 
+def ports_line(open_ports):
+    """(text, colour) for the latest port check: red when a risky service is open."""
+    if open_ports is None:
+        return "Open ports: not checked yet", theme.MUTED
+    if not open_ports:
+        return f"Open ports: none of the {len(config.COMMON_PORTS)} common ports", theme.GREEN
+    text = "Open ports: " + ", ".join(f"{p['service']} ({p['port']})" for p in open_ports)
+    return text, theme.RED if any(p["risk"] == "high" for p in open_ports) else theme.MUTED
+
+
 def verdict(stats):
     """One line that sums the device up, e.g. "Online  ·  normal latency"."""
     parts = [STATUS_LABELS[stats.status]]
@@ -33,7 +43,7 @@ class DevicePanel(ctk.CTkToplevel):
         super().__init__(parent)
         self.ip = None
         self.title("Device")
-        self.geometry("680x620")
+        self.geometry("680x680")
         self.transient(app)                                  # stays above the main window
         self.protocol("WM_DELETE_WINDOW", self.withdraw)     # closing only hides it; the next open reuses it
 
@@ -55,6 +65,8 @@ class DevicePanel(ctk.CTkToplevel):
             self.tiles[title].pack(anchor="w", padx=12, pady=(0, 8))
         self.seen = ctk.CTkLabel(self, text="", text_color=theme.MUTED, anchor="w")
         self.seen.pack(fill="x", padx=theme.PAD, pady=(8, 0))
+        self.ports = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=640)
+        self.ports.pack(fill="x", padx=theme.PAD)
         self.chart = LatencyChart(self)
         self.chart.pack(fill="both", expand=True, padx=theme.PAD, pady=8)
 
@@ -67,6 +79,9 @@ class DevicePanel(ctk.CTkToplevel):
             self.known_button = ctk.CTkButton(actions, text="Mark as known", width=130, command=self.mark_known)
             self.known_button.pack(side="left", padx=8)
             ctk.CTkButton(actions, text="Rename", width=100, command=self.rename).pack(side="left")
+            ctk.CTkButton(actions, text="Check ports", width=110, command=self.check_ports).pack(side="left", padx=8)
+            ctk.CTkLabel(self, text="Only check devices on a network you own or administer.",
+                         text_color=theme.MUTED, anchor="w").pack(fill="x", padx=theme.PAD, pady=(4, 0))
         self.status = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=640)
         self.status.pack(fill="x", padx=theme.PAD, pady=(8, theme.PAD))
 
@@ -96,6 +111,8 @@ class DevicePanel(ctk.CTkToplevel):
             self.tiles[title].configure(text=text)
         self.seen.configure(text=f"First seen {device.first_seen.replace('T', ' ') or '-'}        "
                                  f"Last seen {device.last_seen.replace('T', ' ') or '-'}")
+        text, color = ports_line(detail.open_ports)
+        self.ports.configure(text=text, text_color=color)
         history = detail.history
         self.chart.plot([r.timestamp[11:] for r in history], [r.avg_ms or 0 for r in history],
                         "Average latency of the last 10 tests" if history else "No ping tests stored yet")
@@ -117,6 +134,15 @@ class DevicePanel(ctk.CTkToplevel):
 
     def mark_known(self):
         run_async(services.mark_known, self.ip, on_done=lambda recs: self._load(), on_error=self._show_error)
+
+    def check_ports(self):
+        self.status.configure(text=f"Checking {len(config.COMMON_PORTS)} common ports on {self.ip}...",
+                              text_color=theme.MUTED)
+        run_async(services.check_ports, self.ip, on_done=self._ports_checked, on_error=self._show_error)
+
+    def _ports_checked(self, detail):
+        self.status.configure(text="")
+        self._show(detail)
 
     def rename(self):
         dialog = ctk.CTkInputDialog(title="Rename device", text=f"Name for {self.ip}\n(leave empty to use its hostname):")

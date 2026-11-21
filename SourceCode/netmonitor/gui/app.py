@@ -67,6 +67,8 @@ class App(ctk.CTk):
                       command=self.sign_out).pack(side="bottom", fill="x", padx=10, pady=(4, theme.PAD))
         ctk.CTkLabel(sidebar, text=f"{user.username}\n{'Administrator' if user.is_admin else 'User'}",
                      text_color=theme.MUTED).pack(side="bottom")
+        self.watch_label = ctk.CTkLabel(sidebar, text="", text_color=theme.GREEN)   # "Watch ●" while it runs
+        self.watch_label.pack(side="bottom", pady=(0, 8))
 
         self.watch_switches, self._watch_job, self._watch_busy = [], None, False   # views add their switches
         self.views, self.buttons = {}, {}
@@ -117,9 +119,11 @@ class App(ctk.CTk):
         if self._watch_job:
             self.after_cancel(self._watch_job)
             self._watch_job = None
+        self.watch_label.configure(text="")
         if on:
             services.start_watch()
             self._watch_minutes = services.settings()["watch_min"]   # one small database read
+            self.watch_label.configure(text=f"Watch ●  every {self._watch_minutes:g} min")
             self._watch_tick()                                       # the first check runs now
 
     def _watch_tick(self):

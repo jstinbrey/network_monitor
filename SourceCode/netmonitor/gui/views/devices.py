@@ -52,7 +52,15 @@ class DevicesView(ctk.CTkFrame):
         self.status.configure(text="Scanning...", text_color=theme.MUTED)
         # The scan reports progress from its own thread, so post() carries it to the UI thread.
         run_async(services.scan, lambda done, total: post(self._show_progress, (done, total)),
-                  on_done=self._show_devices, on_error=self._show_error)
+                  on_done=self._scanned, on_error=self._scan_failed)
+
+    def _scanned(self, devices):
+        self._show_devices(devices)
+        self.scan_button.configure(state=self.scan_state)
+
+    def _scan_failed(self, error):
+        self._show_error(error)
+        self.scan_button.configure(state=self.scan_state)
 
     def on_show(self):
         """Called each time this view is opened: refresh the network details."""
@@ -83,9 +91,10 @@ class DevicesView(ctk.CTkFrame):
             "tags": tags(d),
             "tag": "good" if d.replied_icmp else "warn",
         } for d in devices])
-        self.status.configure(text=f"{len(devices)} devices found. Double-click one for details." if devices else "No devices yet. Run a scan.",
-                              text_color=theme.MUTED)
-        self.scan_button.configure(state=self.scan_state)
+        new = sum(not d.known for d in devices)
+        self.status.configure(text=f"{len(devices)} devices, {new} new. Double-click one for details." if devices
+                              else "No devices yet. Run a scan.",
+                              text_color=(theme.AMBER if new else theme.GREEN) if devices else theme.MUTED)
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)

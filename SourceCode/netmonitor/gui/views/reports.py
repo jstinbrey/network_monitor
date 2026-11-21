@@ -21,7 +21,7 @@ class ReportsView(ctk.CTkFrame):
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD, pady=12)
-        self.format = ctk.CTkSegmentedButton(bar, values=["HTML", "CSV"])
+        self.format = ctk.CTkSegmentedButton(bar, values=["HTML", "CSV", "PDF"])
         self.format.set("HTML")
         self.format.pack(side="left")
         self.generate_button = ctk.CTkButton(bar, text="Generate report", command=self.generate)

@@ -98,12 +98,20 @@ class DashboardView(ctk.CTkFrame):
         self.scan_button.configure(state="disabled")
         if not self.app.is_admin:
             self.status.configure(text="Pinging every device...", text_color=theme.MUTED)
-            run_async(services.refresh_dashboard, on_done=self._show, on_error=self._show_error)
+            run_async(services.refresh_dashboard, on_done=self._refreshed, on_error=self._refresh_failed)
             return
         self.status.configure(text="Scanning...", text_color=theme.MUTED)
         # Progress comes from the scan's own thread, so post() carries it to the UI thread.
         run_async(services.scan_and_refresh, lambda done, total: post(self._show_progress, (done, total)),
-                  on_done=self._show, on_error=self._show_error)
+                  on_done=self._refreshed, on_error=self._refresh_failed)
+
+    def _refreshed(self, data):
+        self._show(data)
+        self.scan_button.configure(state="normal")
+
+    def _refresh_failed(self, error):
+        self._show_error(error)
+        self.scan_button.configure(state="normal")
 
     def diagnose(self):
         """Test this PC, the router, the internet and DNS in turn, and show where a problem is."""
@@ -127,7 +135,6 @@ class DashboardView(ctk.CTkFrame):
 
     def _show(self, data):
         summary, stats, recommendations, (link, note) = data
-        self.scan_button.configure(state="normal")
         self.status.configure(text="" if summary.devices else "Run a scan to begin.", text_color=theme.MUTED)
 
         score = summary.health_score
@@ -158,4 +165,3 @@ class DashboardView(ctk.CTkFrame):
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)
-        self.scan_button.configure(state="normal")

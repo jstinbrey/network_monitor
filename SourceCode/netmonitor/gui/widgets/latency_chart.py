@@ -31,6 +31,9 @@ class LatencyChart(ctk.CTkFrame):
         self.axes.set_ylabel(unit, color=TEXT)
         self.axes.set_facecolor(BACKGROUND)
         self.axes.tick_params(colors=TEXT)
+        if not labels:
+            self.axes.set_xticks([])
+            self.axes.set_yticks([])
         for spine in self.axes.spines.values():
             spine.set_color(theme.MUTED)
         self.figure.tight_layout()

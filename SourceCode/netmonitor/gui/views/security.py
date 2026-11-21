@@ -34,7 +34,7 @@ class SecurityView(ctk.CTkFrame):
         counts = [sum(r.severity == severity for r in recs) for severity in ("critical", "warning", "info")]
         self.status.configure(text="{} critical  ·  {} warnings  ·  {} info.  "
                                    "Run Refresh all in Statistics for up-to-date results.".format(*counts),
-                              text_color=theme.RED if counts[0] else theme.AMBER if counts[1] else theme.MUTED)
+                              text_color=theme.RED if counts[0] else theme.AMBER if counts[1] else theme.GREEN)
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)

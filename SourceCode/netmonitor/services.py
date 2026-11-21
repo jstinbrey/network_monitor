@@ -586,11 +586,12 @@ _running = set()                      # every tracert and ping -t still running
 
 
 def stop_all():
-    """Stop every running tracert and ping -t. Called by sign-out and window close.
-    A continuous ping stopped here is not stored: only its Stop button stores it."""
+    """Stop every running tracert, ping -t and ping -n (a scan, a watch check). Called by sign-out and window
+    close. A continuous ping stopped here is not stored: only its Stop button stores it."""
     for task in list(_running):       # a copy: a stopped trace removes itself from the set
         task.stop()
     _running.clear()
+    pinger.stop_children()
 
 
 def logout():

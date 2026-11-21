@@ -88,3 +88,16 @@ def test_open_ports_alerts_wifi_and_data_use(tmp_path):
 def test_unknown_format_is_rejected(tmp_path):
     with pytest.raises(ValueError):
         report_builder.build(report_data(DEVICES), "docx", tmp_path)
+
+
+def test_pdf_has_every_section_and_survives_markup_in_names(tmp_path):
+    verdict = Verdict("warn", "DNS", "DNS is slow (420 ms); pages will start slowly.", ["DNS server 192.168.1.1: answered in 420 ms."],
+                      "Set the preferred DNS server to 1.1.1.1.", "7")
+    alert = Event(1, "2026-11-22T09:30:00", "bandwidth", "warning", None, None, "Upload above the limit & <b>.")
+    full = report_builder.build(report_data(DEVICES) | {"verdict": verdict, "diagnosed_at": "2026-11-22 10:00:00",
+                                                        "ports": {"192.168.1.1": [TELNET]}, "events": [alert],
+                                                        "wifi": "Weak signal (35%, -82 dBm)", "usage_bytes": 2e9},
+                                "pdf", tmp_path)
+    assert full.suffix == ".pdf" and full.read_bytes().startswith(b"%PDF")   # the <script> hostname did not break it
+    empty = report_builder.build(report_data([]), "pdf", tmp_path / "empty")
+    assert empty.read_bytes().startswith(b"%PDF")

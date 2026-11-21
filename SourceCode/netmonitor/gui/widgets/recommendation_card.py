@@ -12,7 +12,8 @@ class RecommendationCard(ctk.CTkFrame):
         """on_mark_known, on_open: when given and the card is about a device, it gets a button for each,
         which calls the function with the device's IP."""
         super().__init__(parent)
-        ctk.CTkFrame(self, width=4, corner_radius=0, fg_color=SEVERITY_COLORS[rec.severity]).pack(side="left", fill="y")
+        ctk.CTkFrame(self, width=4, height=1, corner_radius=0,   # fill="y" sets the real height
+                     fg_color=SEVERITY_COLORS[rec.severity]).pack(side="left", fill="y")
         if on_open and rec.host:
             ctk.CTkButton(self, text="Open device", width=110,
                           command=lambda: on_open(rec.host)).pack(side="right", padx=(0, 12))

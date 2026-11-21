@@ -49,16 +49,33 @@ def build_result(ip: str, sent: int, rtts: list[float], raw_lines=None) -> PingR
     )
 
 
+_children = set()                         # every ping -n still running, so stop_children can end it
+
+
 def _run(ip: str, count: int, timeout_ms: int) -> str:
-    """Run ping and return its text output ("" if it hangs)."""
+    """Run ping and return its text output ("" if it hangs). Raises RuntimeError if stop_children ended it."""
+    process = subprocess.Popen(["ping", "-n", str(count), "-w", str(timeout_ms), ip],   # a list, never shell=True
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                               creationflags=NO_WINDOW)
+    _children.add(process)
     try:
-        return subprocess.run(
-            ["ping", "-n", str(count), "-w", str(timeout_ms), ip],   # a list, never shell=True
-            capture_output=True, text=True, creationflags=NO_WINDOW,
-            timeout=count * (timeout_ms / 1000 + 1) + 2,
-        ).stdout
+        output = process.communicate(timeout=count * (timeout_ms / 1000 + 1) + 2)[0]
     except subprocess.TimeoutExpired:
-        return ""
+        process.kill()
+        process.communicate()
+        output = ""
+    finally:
+        _children.discard(process)
+    if getattr(process, "stopped", False):   # cut short: its partial output must not be stored as loss
+        raise RuntimeError("Stopped.")
+    return output
+
+
+def stop_children():
+    """End every ping -n still running (window closed, or signed out); each caller gets RuntimeError."""
+    for process in list(_children):
+        process.stopped = True
+        process.kill()
 
 
 def ping(ip: str, count=config.PING_COUNT, timeout_ms=config.PING_TIMEOUT_MS) -> PingResult:

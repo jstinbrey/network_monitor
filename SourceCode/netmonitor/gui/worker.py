@@ -6,6 +6,7 @@ the main thread drains that queue every few milliseconds.
 """
 import queue
 import threading
+import tkinter
 
 _results = queue.Queue()
 
@@ -30,5 +31,11 @@ def start_pump(root, interval_ms=50):
     root.after(interval_ms, start_pump, root, interval_ms)  # first, so one bad callback cannot stop the pump
     while not _results.empty():
         callback, value = _results.get()
-        if callback:
+        if not callback:
+            continue
+        try:
             callback(value)
+        except tkinter.TclError as error:
+            # Tk says this only when code touches a destroyed widget: the user signed out while the work ran.
+            if not str(error).startswith("invalid command name"):
+                raise

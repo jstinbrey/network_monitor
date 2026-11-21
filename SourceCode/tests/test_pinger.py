@@ -85,3 +85,20 @@ def test_stop_stores_the_session_and_stop_all_does_not(monkeypatch):
         stop(handle)
         assert handle.process.poll() is not None and handle not in services._running
     assert len(recorded) == 1 and recorded[0].received >= 1
+
+
+def test_stop_children_ends_a_running_ping_and_its_caller_raises():
+    errors = []
+
+    def long_ping():
+        try:
+            pinger.ping("192.0.2.1", 10)        # a documentation address: about 10 s of timeouts
+        except RuntimeError as error:
+            errors.append(error)
+    thread = threading.Thread(target=long_ping)
+    thread.start()
+    time.sleep(0.5)
+    started = time.time()
+    pinger.stop_children()                  # what closing the window does
+    thread.join(5)
+    assert errors and time.time() - started < 2 and not pinger._children

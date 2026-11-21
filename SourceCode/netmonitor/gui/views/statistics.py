@@ -46,7 +46,15 @@ class StatisticsView(ctk.CTkFrame):
         """Ping every known device again, then reload."""
         self.refresh_button.configure(state="disabled")
         self.status.configure(text="Pinging every device...", text_color=theme.MUTED)
-        run_async(services.refresh_all, on_done=self._show_stats, on_error=self._show_error)
+        run_async(services.refresh_all, on_done=self._refreshed, on_error=self._refresh_failed)
+
+    def _refreshed(self, stats):
+        self._show_stats(stats)
+        self.refresh_button.configure(state="normal")
+
+    def _refresh_failed(self, error):
+        self._show_error(error)
+        self.refresh_button.configure(state="normal")
 
     def _show_stats(self, stats):
         self.table.set_rows([{
@@ -55,10 +63,14 @@ class StatisticsView(ctk.CTkFrame):
             "jitter": ms(s.jitter_ms), "samples": s.samples,
             "status": STATUS_LABELS[s.status], "tag": theme.STATUS_TAGS.get(s.status, ""),
         } for s in stats])
-        self.status.configure(
-            text=f"{len(stats)} devices. Click a heading to sort, a row for its history, or double-click it for details." if stats
-            else "No devices yet. Run a scan in the Devices view.", text_color=theme.MUTED)
-        self.refresh_button.configure(state="normal")
+        worst = max((s for s in stats if s.avg_ms is not None), key=lambda s: s.avg_ms, default=None)
+        if worst:
+            self.status.configure(text=f"Worst host: {worst.hostname} ({worst.ip}), {worst.avg_ms:g} ms average, "
+                                       f"{worst.loss_pct:g}% loss.  Click a row for its history.",
+                                  text_color=theme.TAG_COLORS.get(theme.STATUS_TAGS.get(worst.status), theme.MUTED))
+        else:
+            self.status.configure(text="No ping results yet: click Refresh all." if stats
+                                  else "No devices yet. Run a scan in the Devices view.", text_color=theme.MUTED)
 
     def _load_history(self, event):
         if self.table.selected():
@@ -73,4 +85,3 @@ class StatisticsView(ctk.CTkFrame):
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)
-        self.refresh_button.configure(state="normal")

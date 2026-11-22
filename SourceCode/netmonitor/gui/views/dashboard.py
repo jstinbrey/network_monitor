@@ -4,16 +4,12 @@ import customtkinter as ctk
 from netmonitor import services
 from netmonitor.gui import theme
 from netmonitor.gui.widgets.latency_chart import LatencyChart
-from netmonitor.gui.widgets.recommendation_card import SEVERITY_COLORS, RecommendationCard
-from netmonitor.gui.widgets.verdict_card import VerdictCard
+from netmonitor.gui.widgets.recommendation_card import RecommendationCard
 from netmonitor.gui.worker import post, run_async
 
-CARDS = ["Devices", "Reachable", "Average latency", "Health score", "Wi-Fi signal"]
-QUALITY_COLORS = {"Excellent": theme.GREEN, "Good": theme.GREEN, "Fair": theme.AMBER, "Weak": theme.RED}
+CARDS = ["Devices", "Reachable", "Average latency", "Health score"]
 MAX_BARS = 15              # more bars than this cannot be read
 TOP_RECOMMENDATIONS = 3
-RECENT_ALERTS = 5
-ALERTS_WIDTH = 300
 
 
 class DashboardView(ctk.CTkFrame):
@@ -24,21 +20,14 @@ class DashboardView(ctk.CTkFrame):
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD, pady=(0, 12))
-        # A User may not scan, so their button only pings the devices already known.
+         # A User may not scan, so their button only pings the devices already known.
         self.scan_button = ctk.CTkButton(bar, text="Scan and refresh" if app.is_admin else "Refresh",
                                          command=self.scan_and_refresh)
         self.scan_button.pack(side="left")
-        self.diagnose_button = ctk.CTkButton(bar, text="Diagnose network", command=self.diagnose)
-        self.diagnose_button.pack(side="left", padx=(8, 0))
         self.status = ctk.CTkLabel(bar, text="", text_color=theme.MUTED)
         self.status.pack(side="left", padx=12)
-        if app.is_admin:                               # watch mode scans, so only an Admin gets the switch
-            app.add_watch_switch(bar)
 
-        self.verdict = VerdictCard(self)
-        self.verdict.pack(fill="x", padx=theme.PAD, pady=(0, 12))
-
-        # Five stat cards: a small muted title above a large value.
+        # Four stat cards: a small muted title above a large value.
         row = ctk.CTkFrame(self, fg_color="transparent")
         row.pack(fill="x", padx=theme.PAD)
         self.values = {}
@@ -49,17 +38,8 @@ class DashboardView(ctk.CTkFrame):
             self.values[title] = ctk.CTkLabel(card, text="-", font=theme.TITLE_FONT)
             self.values[title].pack(anchor="w", padx=12, pady=(0, 8))
 
-        # The chart, and beside it the latest alerts (dismissed ones in grey).
-        middle = ctk.CTkFrame(self, fg_color="transparent")
-        middle.pack(fill="x", padx=theme.PAD, pady=12)
-        self.chart = LatencyChart(middle)
-        self.chart.pack(side="left", fill="both", expand=True)
-        alerts = ctk.CTkFrame(middle, width=ALERTS_WIDTH)
-        alerts.pack(side="right", fill="y", padx=(12, 0))
-        alerts.pack_propagate(False)                   # the chart sets the height; long alerts wrap
-        ctk.CTkLabel(alerts, text="Recent alerts", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=12, pady=(8, 4))
-        self.alert_rows = ctk.CTkFrame(alerts, fg_color="transparent")
-        self.alert_rows.pack(fill="both", expand=True, padx=12)
+        self.chart = LatencyChart(self)
+        self.chart.pack(fill="x", padx=theme.PAD, pady=12)
 
         heading = ctk.CTkFrame(self, fg_color="transparent")
         heading.pack(fill="x", padx=theme.PAD)
@@ -71,70 +51,26 @@ class DashboardView(ctk.CTkFrame):
     def on_show(self):
         """Reload from stored results each time the view is opened."""
         run_async(services.dashboard, on_done=self._show, on_error=self._show_error)
-        self.load_alerts()
-
-    def load_alerts(self):
-        """Also called by the window when an alert arrives or is dismissed."""
-        run_async(services.events, RECENT_ALERTS, on_done=self._show_alerts)   # an error shows in the status line
-
-    def _show_alerts(self, events):
-        if not self.winfo_exists():                    # signed out while they loaded
-            return
-        for row in self.alert_rows.winfo_children():
-            row.destroy()
-        if not events:
-            ctk.CTkLabel(self.alert_rows, text="No alerts yet.", text_color=theme.MUTED).pack(anchor="w")
-        for event in events:
-            row = ctk.CTkLabel(self.alert_rows, text=f"{event.at[5:16].replace('T', ' ')}   {event.detail}",
-                               text_color=theme.MUTED if event.dismissed else SEVERITY_COLORS[event.severity],
-                               anchor="w", justify="left", wraplength=ALERTS_WIDTH - 30)
-            row.pack(fill="x", pady=2)
-            if event.ip:                               # an alert about a device: a click opens its panel
-                row.configure(cursor="hand2")
-                row.bind("<Button-1>", lambda _, ip=event.ip: self.app.open_device(ip))
 
     def scan_and_refresh(self):
         """Find the devices (Feature 1), ping each one (Feature 2), then show the new totals."""
         self.scan_button.configure(state="disabled")
         if not self.app.is_admin:
             self.status.configure(text="Pinging every device...", text_color=theme.MUTED)
-            run_async(services.refresh_dashboard, on_done=self._refreshed, on_error=self._refresh_failed)
+            run_async(services.refresh_dashboard, on_done=self._show, on_error=self._show_error)
             return
         self.status.configure(text="Scanning...", text_color=theme.MUTED)
         # Progress comes from the scan's own thread, so post() carries it to the UI thread.
         run_async(services.scan_and_refresh, lambda done, total: post(self._show_progress, (done, total)),
-                  on_done=self._refreshed, on_error=self._refresh_failed)
-
-    def _refreshed(self, data):
-        self._show(data)
-        self.scan_button.configure(state="normal")
-
-    def _refresh_failed(self, error):
-        self._show_error(error)
-        self.scan_button.configure(state="normal")
-
-    def diagnose(self):
-        """Test this PC, the router, the internet and DNS in turn, and show where a problem is."""
-        self.diagnose_button.configure(state="disabled")
-        self.verdict.start()
-        # Each layer is reported from the worker thread, so post() carries it to the UI thread.
-        run_async(services.diagnose, lambda step: post(self.verdict.add_step, step),
-                  on_done=self._show_verdict, on_error=self._diagnose_failed)
-
-    def _show_verdict(self, verdict):
-        self.verdict.show(verdict)
-        self.diagnose_button.configure(state="normal")
-
-    def _diagnose_failed(self, error):
-        self.verdict.show_error(error)
-        self.diagnose_button.configure(state="normal")
+                  on_done=self._show, on_error=self._show_error)
 
     def _show_progress(self, progress):
         done, total = progress
         self.status.configure(text=f"Scanning {done} / {total}" if done < total else "Pinging every device...")
 
     def _show(self, data):
-        summary, stats, recommendations, (link, note) = data
+        summary, stats, recommendations = data
+        self.scan_button.configure(state="normal")
         self.status.configure(text="" if summary.devices else "Run a scan to begin.", text_color=theme.MUTED)
 
         score = summary.health_score
@@ -147,21 +83,26 @@ class DashboardView(ctk.CTkFrame):
         for title, (text, color) in shown.items():
             if not summary.devices:
                 text, color = "-", None            # no scan yet: do not show a red 0 / 100
+        latency = summary.network_avg_ms
+        shown = {"Devices": (summary.devices, None),
+                 "Reachable": (f"{summary.reachable} / {summary.devices}", None),
+                 "Average latency": ("No data" if latency is None else f"{latency:g} ms", None),
+                 "Health score": (f"{score} / 100", score_color)}
+        for title, (text, color) in shown.items():
+            if not summary.devices:
+                text, color = "-", None            # no scan yet: do not show a red 0 / 100
             self.values[title].configure(text=text, text_color=color or ("gray10", "gray90"))
-        # The Wi-Fi card does not depend on a scan: wired, or the details withheld, shows a muted word.
-        self.values["Wi-Fi signal"].configure(
-            text=f"{link.signal_pct}%" if link else "Wired" if note.startswith("Not on Wi-Fi") else "-",
-            text_color=QUALITY_COLORS[link.quality] if link else theme.MUTED)
 
         replied = [s for s in stats if s.avg_ms is not None][:MAX_BARS]
         self.chart.plot(["." + s.ip.rsplit(".", 1)[1] for s in replied], [s.avg_ms for s in replied],
-                        "Average latency per host (click a bar for details)" if replied
-                        else "No ping results yet", on_pick=lambda i: self.app.open_device(replied[i].ip))
+                        "Average latency per host (label: last part of the IP address)" if replied
+                        else "No ping results yet")
 
         for card in self.recommendations.winfo_children():
             card.destroy()
         for rec in recommendations[:TOP_RECOMMENDATIONS]:
-            RecommendationCard(self.recommendations, rec, on_open=self.app.open_device).pack(fill="x", pady=4)
+            RecommendationCard(self.recommendations, rec).pack(fill="x", pady=4)
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)
+        self.scan_button.configure(state="normal")

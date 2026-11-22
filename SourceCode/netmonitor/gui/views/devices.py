@@ -30,12 +30,10 @@ class DevicesView(ctk.CTkFrame):
         self.status = ctk.CTkLabel(bar, text="No devices yet. Run a scan.", text_color=theme.MUTED)
         self.status.pack(side="left")
         ctk.CTkButton(bar, text="Ping selected", command=self.ping_selected).pack(side="right")
-        if app.is_admin:                               # the same Watch switch as on the Dashboard
-            app.add_watch_switch(bar).pack_configure(padx=(0, 12))
 
-        self.table = HostTable(self, [("ip", "IP Address", 125), ("hostname", "Hostname", 190),
-                                      ("mac", "MAC Address", 145), ("vendor", "Vendor", 190),
-                                      ("status", "Status", 175), ("tags", "Tags", 105)])
+        self.table = HostTable(self, [("ip", "IP Address", 140), ("hostname", "Hostname", 260),
+                                      ("mac", "MAC Address", 170), ("status", "Status", 210),
+                                      ("tags", "Tags", 120)])
         self.table.pack(fill="both", expand=True, padx=theme.PAD, pady=(0, theme.PAD))
         self.table.on_open(app.open_device)
 
@@ -46,21 +44,14 @@ class DevicesView(ctk.CTkFrame):
         else:
             self.status.configure(text="Select one or more devices first (Ctrl+click for several).")
 
+
     def scan(self):
         self.scan_button.configure(state="disabled")
         self.progress.set(0)
         self.status.configure(text="Scanning...", text_color=theme.MUTED)
         # The scan reports progress from its own thread, so post() carries it to the UI thread.
         run_async(services.scan, lambda done, total: post(self._show_progress, (done, total)),
-                  on_done=self._scanned, on_error=self._scan_failed)
-
-    def _scanned(self, devices):
-        self._show_devices(devices)
-        self.scan_button.configure(state=self.scan_state)
-
-    def _scan_failed(self, error):
-        self._show_error(error)
-        self.scan_button.configure(state=self.scan_state)
+                  on_done=self._show_devices, on_error=self._show_error)
 
     def on_show(self):
         """Called each time this view is opened: refresh the network details."""
@@ -86,15 +77,14 @@ class DevicesView(ctk.CTkFrame):
 
     def _show_devices(self, devices):
         self.table.set_rows([{
-            "ip": d.ip, "hostname": d.alias or d.hostname, "mac": d.mac or "-", "vendor": d.vendor,
+            "ip": d.ip, "hostname": d.alias or d.hostname, "mac": d.mac or "-",
             "status": "Online" if d.replied_icmp else "No ICMP reply (host up)",
             "tags": tags(d),
             "tag": "good" if d.replied_icmp else "warn",
         } for d in devices])
-        new = sum(not d.known for d in devices)
-        self.status.configure(text=f"{len(devices)} devices, {new} new. Double-click one for details." if devices
-                              else "No devices yet. Run a scan.",
-                              text_color=(theme.AMBER if new else theme.GREEN) if devices else theme.MUTED)
+        self.status.configure(text=f"{len(devices)} devices found" if devices else "No devices yet. Run a scan.",
+                              text_color=theme.MUTED)
+        self.scan_button.configure(state=self.scan_state)
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)

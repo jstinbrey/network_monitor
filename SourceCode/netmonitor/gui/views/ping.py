@@ -21,7 +21,9 @@ class PingView(ctk.CTkFrame):
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD)
-        self.ip_entry = ctk.CTkEntry(bar, width=180, placeholder_text="IP address")
+        # Type an IP, or pick a scanned device: the list shows "ip  name", picking one keeps only the ip.
+        self.ip_entry = ctk.CTkComboBox(bar, width=260, values=[], command=lambda v: self.ip_entry.set(v.split()[0]))
+        self.ip_entry.set("")                       # an empty CTkComboBox otherwise shows the text "CTkComboBox"
         self.ip_entry.pack(side="left")
         self.ip_entry.bind("<Return>", lambda event: self.run())
         ctk.CTkLabel(bar, text="Packets:").pack(side="left", padx=(12, 6))
@@ -34,7 +36,7 @@ class PingView(ctk.CTkFrame):
         self.continuous = ctk.CTkSwitch(bar, text="Continuous (-t)", command=self._mode_changed)
         self.continuous.pack(side="left")
 
-        self.result = ctk.CTkLabel(self, text="Enter an IP address, or pick devices in the Devices view.",
+        self.result = ctk.CTkLabel(self, text="Pick a scanned device from the list, or type an IP address.",
                                    text_color=theme.MUTED, anchor="w")
         self.result.pack(fill="x", padx=theme.PAD, pady=10)
 
@@ -56,18 +58,22 @@ class PingView(ctk.CTkFrame):
     def on_show(self, ip=None, ips=None, continuous=False):
         """ip: ping this one device now, continuously if continuous=True. ips: ping all of these and list the results.
         Leaving the view does not stop a continuous ping."""
+        run_async(services.devices, on_done=self._fill_devices)   # the list follows the latest scan
         if (ip or ips) and self.handle:
             return self._show_error("Stop the continuous ping first.")
         if ip or ips:
             self.continuous.select() if continuous else self.continuous.deselect()
             self._mode_changed()
         if ip:
-            self.ip_entry.delete(0, "end")
-            self.ip_entry.insert(0, ip)
+            self.ip_entry.set(ip)
             self.run()
         if ips:
             self._busy(f"Pinging {len(ips)} devices...")
             run_async(services.run_ping_many, ips, on_done=self._show_batch, on_error=self._show_error)
+
+    def _fill_devices(self, devices):
+        if self.winfo_exists():                     # the user may have signed in or out while it loaded
+            self.ip_entry.configure(values=[f"{d.ip}  {d.alias or d.hostname}" for d in devices])
 
     def _mode_changed(self):
         """Continuous mode: no packet count, Start instead of Run ping, and the heart-monitor chart."""

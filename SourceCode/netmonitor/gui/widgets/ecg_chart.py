@@ -44,7 +44,7 @@ class EcgChart(ctk.CTkFrame):
         self.points.append((number, rtt, spike))
         xs = [n for n, _, _ in self.points]
         ys = [math.nan if r is None else r for _, r, _ in self.points]   # NaN breaks the line: a visible gap
-        top = max(20, max((r for _, r, _ in self.points if r is not None), default=0) * 1.3)
+        top = max(config.ECG_MIN_TOP_MS, max((r for _, r, _ in self.points if r is not None), default=0) * 1.3)
         self.trace.set_data(xs, ys)
         self.head.set_data(xs[-1:], ys[-1:])
         lost = [n for n, r, _ in self.points if r is None]
@@ -64,5 +64,5 @@ class EcgChart(ctk.CTkFrame):
         self.readout.set_text("")
         self.note.configure(text="")
         self.axes.set_xlim(1, self.points.maxlen + 1)
-        self.axes.set_ylim(0, 20)
+        self.axes.set_ylim(0, config.ECG_MIN_TOP_MS)
         self.canvas.draw_idle()

@@ -16,8 +16,8 @@ def clear(*entries):
 
 
 class LoginView(ctk.CTkFrame):
-    def __init__(self, parent, on_success):
-        """on_success(user) is called on the UI thread once someone has signed in."""
+    def __init__(self, parent, on_success, on_cancel):
+        """on_success(user) is called on the UI thread once someone has signed in; on_cancel() on Back."""
         super().__init__(parent, fg_color="transparent")
         self.on_success = on_success
         self.setup = False              # True on the first run: the form creates the administrator
@@ -35,6 +35,8 @@ class LoginView(ctk.CTkFrame):
             entry.bind("<Return>", lambda event: self.submit())
         self.button = ctk.CTkButton(card, width=WIDTH, text="Please wait...", state="disabled", command=self.submit)
         self.button.pack(padx=40, pady=(16, 0))
+        ctk.CTkButton(card, width=WIDTH, text="Back", fg_color="transparent", border_width=1,
+                      command=on_cancel).pack(padx=40, pady=(8, 0))
         self.error = ctk.CTkLabel(card, text="", text_color=theme.RED, wraplength=WIDTH)
         self.error.pack(padx=40, pady=(8, 20))
         self.reset()

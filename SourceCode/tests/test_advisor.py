@@ -56,6 +56,7 @@ def test_high_jitter_and_blocked_icmp_are_info():
     assert titles([PC], [blocked]) == ["pc (192.168.1.20) does not answer ping",
                                        "Keep the firewall turned on", "Use strong router and Wi-Fi passwords"]
 
+
 ARP = {"192.168.1.1": "aa-aa-aa-aa-aa-aa", "192.168.1.20": "bb-bb-bb-bb-bb-bb"}   # the gateway and the PC
 
 
@@ -67,12 +68,15 @@ def test_another_address_with_the_gateway_mac_is_critical():
     spoofed = ARP | {"192.168.1.250": "aa-aa-aa-aa-aa-aa"}
     assert arp_findings(spoofed) == [("critical", "Possible ARP spoofing: the gateway shares MAC aa-aa-aa-aa-aa-aa")]
 
+
 def test_two_addresses_sharing_another_mac_is_a_warning():
     extender = ARP | {"192.168.1.30": "bb-bb-bb-bb-bb-bb"}
     assert arp_findings(extender) == [("warning", "2 addresses share MAC bb-bb-bb-bb-bb-bb")]
 
+
 def test_a_clean_arp_table_adds_nothing():
     assert arp_findings(ARP) == [] and len(advisor.recommend([], [], ARP, "192.168.1.1")) == 2
+
 
 def test_device_that_was_never_pinged_raises_nothing():
     assert len(advisor.recommend([PC], [stats(PC, None, None, None, models.NO_DATA)])) == 2

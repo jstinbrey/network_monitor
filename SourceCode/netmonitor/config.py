@@ -36,6 +36,7 @@ PING_MANY_WORKERS = 16      # parallel hosts in a batch ping
 TCP_TIMEOUT_S = 3           # must exceed 2 s: Windows reports a refused
                             # connection only after retrying for about 2 s
 ECG_WINDOW = 60             # continuous ping: replies on screen (about one per second)
+ECG_MIN_TOP_MS = 5          # continuous ping: the chart's top until a reply is slower; LAN replies are under 1 ms
 LOG_MAX_LINES = 500         # older lines of the Ping log are deleted
 
 # --- Feature 2 extension: traceroute --------------------------------------

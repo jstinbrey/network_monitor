@@ -24,7 +24,7 @@ class ReportsView(ctk.CTkFrame):
         self.format = ctk.CTkSegmentedButton(bar, values=["HTML", "CSV", "PDF"])
         self.format.set("HTML")
         self.format.pack(side="left")
-        self.generate_button = ctk.CTkButton(bar, text="Generate report", command=self.generate)
+        self.generate_button = ctk.CTkButton(bar, text="Generate report", command=self.generate, **theme.PRIMARY)
         self.generate_button.pack(side="left", padx=12)
         self.status = ctk.CTkLabel(bar, text="", text_color=theme.MUTED)
         self.status.pack(side="left")
@@ -55,7 +55,7 @@ class ReportsView(ctk.CTkFrame):
             ctk.CTkLabel(self.list, text="No reports yet. Click Generate report.", text_color=theme.MUTED).pack(pady=20)
         for path in paths:
             created = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d  %H:%M:%S")
-            ctk.CTkButton(self.list, anchor="w", fg_color="transparent", hover_color=theme.BLUE,
+            ctk.CTkButton(self.list, anchor="w", fg_color="transparent", hover_color=theme.SUBTLE, border_width=0,
                           text=f"{created}      {path.suffix[1:].upper():<6}{path.name}",
                           command=lambda p=path: self._open(p)).pack(fill="x", pady=1)
 

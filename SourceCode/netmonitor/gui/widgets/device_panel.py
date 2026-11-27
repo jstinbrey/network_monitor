@@ -55,7 +55,7 @@ class DevicePanel(ctk.CTkToplevel):
         self.name.pack(fill="x", padx=theme.PAD, pady=(theme.PAD, 0))
         self.address = ctk.CTkLabel(self, text="", text_color=theme.MUTED, anchor="w")
         self.address.pack(fill="x", padx=theme.PAD)
-        self.verdict = ctk.CTkLabel(self, text="", font=("Segoe UI", 14, "bold"), anchor="w")
+        self.verdict = ctk.CTkLabel(self, text="", font=theme.CARD_FONT, anchor="w")
         self.verdict.pack(fill="x", padx=theme.PAD, pady=(4, 12))
 
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -65,7 +65,7 @@ class DevicePanel(ctk.CTkToplevel):
             tile = ctk.CTkFrame(row)
             tile.pack(side="left", fill="x", expand=True, padx=(0, 8))
             ctk.CTkLabel(tile, text=title, text_color=theme.MUTED).pack(anchor="w", padx=12, pady=(8, 0))
-            self.tiles[title] = ctk.CTkLabel(tile, text="-", font=("Segoe UI", 18, "bold"))
+            self.tiles[title] = ctk.CTkLabel(tile, text="-", font=theme.STAT_FONT)
             self.tiles[title].pack(anchor="w", padx=12, pady=(0, 8))
         self.seen = ctk.CTkLabel(self, text="", text_color=theme.MUTED, anchor="w")
         self.seen.pack(fill="x", padx=theme.PAD, pady=(8, 0))
@@ -83,7 +83,7 @@ class DevicePanel(ctk.CTkToplevel):
 
         actions = ctk.CTkFrame(self, fg_color="transparent")
         actions.pack(fill="x", padx=theme.PAD)
-        self.ping_button = ctk.CTkButton(actions, text="Ping", width=100, command=self.ping)
+        self.ping_button = ctk.CTkButton(actions, text="Ping", width=100, command=self.ping, **theme.PRIMARY)
         self.ping_button.pack(side="left")
         ctk.CTkButton(actions, text="Traceroute", width=100, command=self.traceroute).pack(side="left", padx=(8, 0))
         ctk.CTkButton(actions, text="Continuous ping", width=130,

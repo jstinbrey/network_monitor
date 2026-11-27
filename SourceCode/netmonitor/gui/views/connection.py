@@ -12,10 +12,11 @@ from matplotlib.figure import Figure
 
 from netmonitor import config, services
 from netmonitor.gui import theme
-from netmonitor.gui.widgets.latency_chart import BACKGROUND, TEXT, LatencyChart
+from netmonitor.gui.widgets.latency_chart import LatencyChart
 from netmonitor.gui.worker import run_async
 
-DOWN_COLOR, UP_COLOR = "#4da3ff", theme.GREEN     # a lighter blue than theme.BLUE, readable on the dark chart
+DOWN_COLOR, UP_COLOR = theme.LIME, theme.PAPER_SERIES_2   # live chart: lime and light blue on dark chart paper
+BACKGROUND, TEXT = theme.PAPER, theme.PAPER_MUTED
 TILES = ["Download now", "Upload now", "Peak download (2 min)", "Used today"]
 QUALITY_COLORS = {"Excellent": theme.GREEN, "Good": theme.GREEN, "Fair": theme.AMBER, "Weak": theme.RED}
 WIFI_TEXT_WIDTH = 400
@@ -31,21 +32,21 @@ class ConnectionView(ctk.CTkFrame):
         ctk.CTkLabel(self, text="Connection", font=theme.TITLE_FONT).pack(anchor="w", padx=theme.PAD, pady=(theme.PAD, 8))
 
         # Wi-Fi: the link on the left, access points per channel on the right.
-        ctk.CTkLabel(self, text="Wi-Fi", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=theme.PAD)
+        ctk.CTkLabel(self, text="Wi-Fi", font=theme.CARD_FONT).pack(anchor="w", padx=theme.PAD)
         wifi_row = ctk.CTkFrame(self, fg_color="transparent", height=170)
         wifi_row.pack(fill="x", padx=theme.PAD, pady=(4, 10))
         wifi_row.pack_propagate(False)                         # the row is 170 px; the chart shrinks to fit
         self.nearby = LatencyChart(wifi_row)
         self.nearby.canvas.get_tk_widget().configure(width=380)
         self.nearby.pack(side="right", fill="y")
-        self.wifi_verdict = ctk.CTkLabel(wifi_row, text="Reading Wi-Fi...", font=("Segoe UI", 14, "bold"), anchor="w",
+        self.wifi_verdict = ctk.CTkLabel(wifi_row, text="Reading Wi-Fi...", font=theme.CARD_FONT, anchor="w",
                                          justify="left", wraplength=WIFI_TEXT_WIDTH, text_color=theme.MUTED)
         self.wifi_verdict.pack(fill="x")
         self.wifi_details = ctk.CTkLabel(wifi_row, text="", text_color=theme.MUTED, anchor="w", justify="left",
                                          wraplength=WIFI_TEXT_WIDTH)
         self.wifi_details.pack(fill="x", pady=(4, 0))
 
-        ctk.CTkLabel(self, text="Bandwidth", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=theme.PAD)
+        ctk.CTkLabel(self, text="Bandwidth", font=theme.CARD_FONT).pack(anchor="w", padx=theme.PAD)
 
         row = ctk.CTkFrame(self, fg_color="transparent")
         row.pack(fill="x", padx=theme.PAD, pady=(4, 0))
@@ -54,13 +55,13 @@ class ConnectionView(ctk.CTkFrame):
             tile = ctk.CTkFrame(row)
             tile.pack(side="left", fill="both", expand=True, padx=(0, 8))
             ctk.CTkLabel(tile, text=title, text_color=theme.MUTED).pack(anchor="w", padx=12, pady=(8, 0))
-            self.tiles[title] = ctk.CTkLabel(tile, text="-", font=("Segoe UI", 18, "bold"))
+            self.tiles[title] = ctk.CTkLabel(tile, text="-", font=theme.STAT_FONT)
             self.tiles[title].pack(anchor="w", padx=12, pady=(0, 8))
         self.cap_bar = ctk.CTkProgressBar(tile)                # inside the last tile: today's use against the cap
         self.cap_bar.set(0)
         self.cap_bar.pack(fill="x", padx=12, pady=(0, 10))
 
-        self.verdict = ctk.CTkLabel(self, text="Measuring...", anchor="w", font=("Segoe UI", 14, "bold"),
+        self.verdict = ctk.CTkLabel(self, text="Measuring...", anchor="w", font=theme.CARD_FONT,
                                     text_color=theme.MUTED)
         self.verdict.pack(fill="x", padx=theme.PAD, pady=(10, 0))
         ctk.CTkLabel(self, text="Measures this PC only, while NetMonitor is running.", text_color=theme.MUTED,
@@ -71,7 +72,7 @@ class ConnectionView(ctk.CTkFrame):
         self.axes = self.figure.add_subplot(111, facecolor=BACKGROUND)
         self.axes.tick_params(colors=TEXT)
         for spine in self.axes.spines.values():
-            spine.set_color(theme.MUTED)
+            spine.set_color(theme.PAPER_GRID)
         self.axes.set_xlim(-config.BW_WINDOW_S, 0)
         self.axes.set_ylim(0, 1)
         self.axes.set_xlabel("seconds ago", color=TEXT)
@@ -80,7 +81,7 @@ class ConnectionView(ctk.CTkFrame):
         self.up_line, = self.axes.plot([], [], color=UP_COLOR, linewidth=1.6, label="Upload")
         self.down_limit = self.axes.axhline(0, color=DOWN_COLOR, linestyle="--", linewidth=1, visible=False)
         self.up_limit = self.axes.axhline(0, color=UP_COLOR, linestyle="--", linewidth=1, visible=False)
-        self.axes.legend(loc="upper left", facecolor=BACKGROUND, edgecolor=theme.MUTED, labelcolor=TEXT)
+        self.axes.legend(loc="upper left", facecolor=BACKGROUND, edgecolor=theme.PAPER_GRID, labelcolor=TEXT)
         self.figure.tight_layout()
         self.canvas = FigureCanvasTkAgg(self.figure, master=self)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=theme.PAD, pady=8)

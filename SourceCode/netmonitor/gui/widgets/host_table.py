@@ -28,12 +28,12 @@ class HostTable(ctk.CTkFrame):
         for key, title, width in columns:
             self.tree.heading(key, text=title, anchor="w", command=lambda k=key: self._sort(k))
             self.tree.column(key, width=width, anchor="w")
-        for tag, color in theme.TAG_COLORS.items():
-            self.tree.tag_configure(tag, foreground=color)
+        for tag, color in theme.TAG_COLORS.items():   # healthy rows stay plain; only problems are coloured
+            self.tree.tag_configure(tag, foreground=theme.TEXT if tag == "good" else color)
         scrollbar = ctk.CTkScrollbar(self, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
-        self.tree.pack(side="left", fill="both", expand=True, padx=(2, 0), pady=2)
-        scrollbar.pack(side="right", fill="y")
+        self.tree.pack(side="left", fill="both", expand=True, padx=(12, 0), pady=12)   # inside the card's rounded corners
+        scrollbar.pack(side="right", fill="y", padx=(0, 6), pady=12)
         self._sorted_by = None
 
     def set_rows(self, rows):

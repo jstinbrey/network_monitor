@@ -1,0 +1,21 @@
+{
+  "CTk": {"fg_color": ["#F1F2EE", "#0F1113"]},
+  "CTkToplevel": {"fg_color": ["#F1F2EE", "#0F1113"]},
+  "CTkFrame": {"corner_radius": 20, "border_width": 0, "fg_color": ["#FFFFFF", "#181B1E"], "top_fg_color": ["#F6F7F3", "#22262A"], "border_color": ["#E3E5DF", "#2C3136"]},
+  "CTkButton": {"corner_radius": 14, "border_width": 1, "fg_color": ["#FFFFFF", "#181B1E"], "hover_color": ["#F6F7F3", "#22262A"], "border_color": ["#CBD0C7", "#3B4147"], "text_color": ["#16191B", "#ECEDE8"], "text_color_disabled": ["#A3A9AE", "#4E545B"]},
+  "CTkLabel": {"corner_radius": 0, "border_width": 0, "fg_color": "transparent", "border_color": ["#E3E5DF", "#2C3136"], "text_color": ["#16191B", "#ECEDE8"]},
+  "CTkEntry": {"corner_radius": 12, "border_width": 1, "fg_color": ["#FFFFFF", "#181B1E"], "border_color": ["#828881", "#7A828A"], "text_color": ["#16191B", "#ECEDE8"], "placeholder_text_color": ["#676D75", "#9198A0"]},
+  "CTkCheckBox": {"corner_radius": 5, "border_width": 2, "fg_color": ["#16191B", "#ECEDE8"], "border_color": ["#828881", "#7A828A"], "hover_color": ["#2D3337", "#D6D9D1"], "checkmark_color": ["#FFFFFF", "#16191B"], "text_color": ["#16191B", "#ECEDE8"], "text_color_disabled": ["#A3A9AE", "#4E545B"]},
+  "CTkSwitch": {"corner_radius": 1000, "border_width": 3, "button_length": 0, "fg_color": ["#828881", "#7A828A"], "progress_color": ["#16191B", "#ECEDE8"], "button_color": ["#FFFFFF", "#181B1E"], "button_hover_color": ["#F6F7F3", "#22262A"], "text_color": ["#16191B", "#ECEDE8"], "text_color_disabled": ["#A3A9AE", "#4E545B"]},
+  "CTkRadioButton": {"corner_radius": 1000, "border_width_checked": 6, "border_width_unchecked": 2, "fg_color": ["#16191B", "#ECEDE8"], "border_color": ["#828881", "#7A828A"], "hover_color": ["#2D3337", "#D6D9D1"], "text_color": ["#16191B", "#ECEDE8"], "text_color_disabled": ["#A3A9AE", "#4E545B"]},
+  "CTkProgressBar": {"corner_radius": 1000, "border_width": 0, "fg_color": ["#E3E5DF", "#2C3136"], "progress_color": ["#16191B", "#ECEDE8"], "border_color": ["#E3E5DF", "#2C3136"]},
+  "CTkSlider": {"corner_radius": 1000, "button_corner_radius": 1000, "border_width": 6, "button_length": 0, "fg_color": ["#E3E5DF", "#2C3136"], "progress_color": ["#16191B", "#ECEDE8"], "button_color": ["#16191B", "#ECEDE8"], "button_hover_color": ["#2D3337", "#D6D9D1"]},
+  "CTkOptionMenu": {"corner_radius": 12, "fg_color": ["#F6F7F3", "#22262A"], "button_color": ["#F6F7F3", "#22262A"], "button_hover_color": ["#E3E5DF", "#2C3136"], "text_color": ["#16191B", "#ECEDE8"], "text_color_disabled": ["#A3A9AE", "#4E545B"]},
+  "CTkComboBox": {"corner_radius": 12, "border_width": 1, "fg_color": ["#FFFFFF", "#181B1E"], "border_color": ["#828881", "#7A828A"], "button_color": ["#828881", "#7A828A"], "button_hover_color": ["#676D75", "#9198A0"], "text_color": ["#16191B", "#ECEDE8"], "text_color_disabled": ["#A3A9AE", "#4E545B"]},
+  "CTkScrollbar": {"corner_radius": 1000, "border_spacing": 4, "fg_color": "transparent", "button_color": ["#CBD0C7", "#3B4147"], "button_hover_color": ["#828881", "#7A828A"]},
+  "CTkSegmentedButton": {"corner_radius": 14, "border_width": 3, "fg_color": ["#F6F7F3", "#22262A"], "selected_color": ["#FFFFFF", "#2C3136"], "selected_hover_color": ["#FFFFFF", "#2C3136"], "unselected_color": ["#F6F7F3", "#22262A"], "unselected_hover_color": ["#E3E5DF", "#2C3136"], "text_color": ["#16191B", "#ECEDE8"], "text_color_disabled": ["#A3A9AE", "#4E545B"]},
+  "CTkTextbox": {"corner_radius": 12, "border_width": 0, "fg_color": ["#F6F7F3", "#22262A"], "border_color": ["#E3E5DF", "#2C3136"], "text_color": ["#555B62", "#B3B8BE"], "scrollbar_button_color": ["#CBD0C7", "#3B4147"], "scrollbar_button_hover_color": ["#828881", "#7A828A"]},
+  "CTkScrollableFrame": {"label_fg_color": ["#F6F7F3", "#22262A"]},
+  "DropdownMenu": {"fg_color": ["#FFFFFF", "#181B1E"], "hover_color": ["#F6F7F3", "#22262A"], "text_color": ["#16191B", "#ECEDE8"]},
+  "CTkFont": {"macOS": {"family": "SF Display", "size": 13, "weight": "normal"}, "Windows": {"family": "Plus Jakarta Sans", "size": 13, "weight": "normal"}, "Linux": {"family": "Plus Jakarta Sans", "size": 13, "weight": "normal"}}
+}

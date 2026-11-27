@@ -9,7 +9,7 @@ from matplotlib.figure import Figure
 from netmonitor import config
 from netmonitor.gui import theme
 
-PAPER, GRID_MAJOR, GRID_MINOR, TRACE = "#0f1712", "#1f3b2b", "#16281e", "#3ddc84"
+PAPER, GRID_MAJOR, GRID_MINOR, TRACE = theme.PAPER, theme.PAPER_GRID, "#1F2427", theme.LIME   # live: dark chart paper
 
 
 class EcgChart(ctk.CTkFrame):
@@ -26,15 +26,15 @@ class EcgChart(ctk.CTkFrame):
         self.axes.minorticks_on()
         self.axes.grid(which="major", color=GRID_MAJOR, linewidth=0.8)
         self.axes.grid(which="minor", color=GRID_MINOR, linewidth=0.4)
-        self.axes.tick_params(which="both", colors=theme.MUTED, labelbottom=False)   # reply numbers mean nothing here
-        self.axes.set_ylabel("ms", color=theme.MUTED)
-        self.axes.axhline(config.LATENCY_WARN_MS, color=theme.AMBER, linestyle="--", linewidth=1)
+        self.axes.tick_params(which="both", colors=theme.PAPER_MUTED, labelbottom=False)   # reply numbers mean nothing here
+        self.axes.set_ylabel("ms", color=theme.PAPER_MUTED)
+        self.axes.axhline(config.LATENCY_WARN_MS, color=theme.PAPER_WARN, linestyle="--", linewidth=1)
         self.trace, = self.axes.plot([], [], color=TRACE, linewidth=1.6)
         self.head, = self.axes.plot([], [], "o", color=TRACE, markersize=5)
-        self.lost, = self.axes.plot([], [], "x", color=theme.RED, markersize=8, markeredgewidth=2)
-        self.spikes, = self.axes.plot([], [], "o", color=theme.AMBER, markersize=7)
+        self.lost, = self.axes.plot([], [], "x", color=theme.PAPER_BAD, markersize=8, markeredgewidth=2)
+        self.spikes, = self.axes.plot([], [], "o", color=theme.PAPER_WARN, markersize=7)
         self.readout = self.axes.text(0.98, 0.95, "", transform=self.axes.transAxes, ha="right", va="top",
-                                      color=TRACE, fontsize=20, family="Consolas")
+                                      color=TRACE, fontsize=20, family=[theme.MONO, "Consolas", "monospace"])
         self.canvas = FigureCanvasTkAgg(self.figure, master=self)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=4, pady=4)
         self.clear()
@@ -53,7 +53,7 @@ class EcgChart(ctk.CTkFrame):
         self.axes.set_xlim(number - self.points.maxlen + 1, number + 1)
         self.axes.set_ylim(0, top)
         self.readout.set_text("LOST" if rtt is None else f"{rtt:g} ms")
-        self.readout.set_color(theme.RED if rtt is None else TRACE)
+        self.readout.set_color(theme.PAPER_BAD if rtt is None else TRACE)
         self.canvas.draw_idle()
 
     def clear(self):

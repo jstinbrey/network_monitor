@@ -77,12 +77,12 @@ class MapCanvas(tk.Canvas):
             # The internet sits half a slot after the top device, so its link passes between two devices.
             angle = -math.pi / 2 + math.pi / max(1, min(PER_RING, len(others)))
             ix, iy = cx + (radius + INTERNET_GAP) * math.cos(angle), cy + (radius + INTERNET_GAP) * math.sin(angle)
-            self.create_line(cx, cy, ix, iy, fill=theme.MUTED, width=2, tags=("edge:internet",))
+            self.create_line(cx, cy, ix, iy, fill=theme.BORDER_CONTROL, width=2, tags=("edge:internet",))
             for d, (x, y) in zip(others, points):
                 color, dash = edge_style(stats.get(d.ip))
                 self.create_line(cx, cy, x, y, fill=color, dash=dash, width=2, tags=(f"edge:{d.ip}",))
-            self.create_oval(ix - 20, iy - 14, ix + 20, iy + 14, fill=theme.BLUE, outline="", tags=("internet",))
-            self.create_text(ix, iy + 26, text="Internet", fill=TEXT, font=("Segoe UI", 9, "bold"), tags=("internet",))
+            self.create_oval(ix - 20, iy - 14, ix + 20, iy + 14, fill=theme.INK, outline="", tags=("internet",))
+            self.create_text(ix, iy + 26, text="Internet", fill=TEXT, font=(theme.SANS_SEMIBOLD, 9), tags=("internet",))
             self._node(gateway, cx, cy, GATEWAY_R, stats.get(gateway.ip), gateway.ip in issues)
         for d, (x, y) in zip(others, points):
             self._node(d, x, y, NODE_R, stats.get(d.ip), d.ip in issues)
@@ -91,17 +91,19 @@ class MapCanvas(tk.Canvas):
         tags = ("node", f"ip:{device.ip}")
         fill = theme.TAG_COLORS.get(theme.STATUS_TAGS.get(stats.status if stats else ""), theme.MUTED)
         # This PC has a thick white outline.
-        outline, width = ("white", 3) if device.is_self else (BACKGROUND, 1)
+        outline, width = (theme.INK, 3) if device.is_self else (BACKGROUND, 1)
         self.create_oval(x - r, y - r, x + r, y + r, fill=fill, outline=outline, width=width, tags=tags)
         if not device.known:                            # new on the network: a red ring, visible on any fill
             self.create_oval(x - r - 6, y - r - 6, x + r + 6, y + r + 6, outline=theme.RED, width=2, tags=tags)
         name = device.alias or ("Gateway" if device.is_gateway else device.hostname)
-        self.create_text(x, y + r + 14, text=f"{name[:18]}\n{device.ip}", fill=TEXT, font=("Segoe UI", 9),
-                         justify="center", tags=tags)
+        label = self.create_text(x, y + r + 8, text=f"{name[:18]}\n{device.ip}", fill=TEXT, font=(theme.SANS, 9),
+                                 justify="center", anchor="n", tags=tags)   # hangs below the node, whatever the font height
+        x1, y1, x2, y2 = self.bbox(label)              # a white backing, so links pass behind the label
+        self.tag_lower(self.create_rectangle(x1 - 3, y1 - 1, x2 + 3, y2 + 1, fill=BACKGROUND, outline="", tags=tags), label)
         if issue:                                       # a "!" badge: risky port, ARP or connectivity finding
             bx, by = x + r * 0.75, y - r * 0.75
             self.create_oval(bx - 7, by - 7, bx + 7, by + 7, fill=theme.RED, outline=BACKGROUND, tags=tags)
-            self.create_text(bx, by, text="!", fill="white", font=("Segoe UI", 9, "bold"), tags=tags)
+            self.create_text(bx, by, text="!", fill=theme.SURFACE, font=(theme.SANS_SEMIBOLD, 9), tags=tags)
 
     @staticmethod
     def _tip(device, stats):
@@ -145,9 +147,9 @@ class MapCanvas(tk.Canvas):
             return
         self.delete("tooltip")
         x, y = self.canvasx(event.x) + 16, self.canvasy(event.y) + 16   # canvas coordinates: the map may be panned
-        text = self.create_text(x, y, text=self.tips[ip], anchor="nw", fill=TEXT, font=("Segoe UI", 9), tags="tooltip")
+        text = self.create_text(x, y, text=self.tips[ip], anchor="nw", fill=TEXT, font=(theme.SANS, 9), tags="tooltip")
         x1, y1, x2, y2 = self.bbox(text)
-        box = self.create_rectangle(x1 - 6, y1 - 4, x2 + 6, y2 + 4, fill="#1b1b1b", outline=theme.MUTED, tags="tooltip")
+        box = self.create_rectangle(x1 - 6, y1 - 4, x2 + 6, y2 + 4, fill=theme.SURFACE, outline=theme.BORDER_STRONG, tags="tooltip")
         self.tag_lower(box, text)
 
     def _zoom(self, event):

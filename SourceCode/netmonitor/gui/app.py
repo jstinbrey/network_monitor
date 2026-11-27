@@ -24,14 +24,19 @@ VIEWS = [("Dashboard", DashboardView), ("Devices", DevicesView), ("Map", MapView
          ("Traceroute", TracerouteView), ("Connection", ConnectionView), ("Statistics", StatisticsView),
          ("Reports", ReportsView), ("Security", SecurityView)]   # sidebar order; the first one opens at start and after sign-in
 ADMIN_VIEWS = [("Admin", AdminView)]   # built only for administrators, so a User's window never contains them
+# Sidebar groups: (label, [(view, icon)]). "Manage" is shown only to administrators.
+NAV_GROUPS = [("Monitor", [("Dashboard", "dashboard"), ("Devices", "devices"), ("Map", "map")]),
+              ("Test", [("Ping", "ping"), ("Traceroute", "traceroute"), ("Connection", "connection")]),
+              ("Analyze", [("Statistics", "statistics"), ("Reports", "reports"), ("Security", "security")]),
+              ("Manage", [("Admin", "users")])]
+ICONS = {name: icon for _, items in NAV_GROUPS for name, icon in items}
 
 
 class App(ctk.CTk):
     def __init__(self):
+        theme.load()             # fonts and theme.json must be in place before the first widget exists
         super().__init__()
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
-        theme.style_tables()
+        theme.setup(self)
         worker.start_pump(self)
 
         self.title(f"{config.APP_TITLE} {config.VERSION}")
@@ -62,48 +67,94 @@ class App(ctk.CTk):
         self.main.grid_columnconfigure(1, weight=1)   # the view stretches, the sidebar does not
         self.main.grid_rowconfigure(1, weight=1)      # row 0: the alert bar, when there is one; row 1: the view
 
-        sidebar = ctk.CTkFrame(self.main, width=190, corner_radius=0)
-        sidebar.grid(row=0, column=0, rowspan=2, sticky="ns")
-        sidebar.pack_propagate(False)
-        # Upper left: the optional sign-in for an administrator, or Sign out once someone is signed in.
-        ctk.CTkButton(sidebar, text="Sign out" if user else "\U0001F512 Admin sign in", height=28, anchor="w",
-                      fg_color="transparent", border_width=1,
-                      command=self.sign_out if user else self.ask_login).pack(fill="x", padx=10, pady=(10, 0))
-        ctk.CTkLabel(sidebar, text=config.APP_TITLE, font=theme.TITLE_FONT).pack(padx=theme.PAD, pady=(theme.PAD, 24))
-        # The bottom of the sidebar, packed bottom-up: who is signed in, and above it the watch state.
-        who = f"{user.username}\n{'Administrator' if user.is_admin else 'User'}" if user else "Guest"
-        ctk.CTkLabel(sidebar, text=who, text_color=theme.MUTED).pack(side="bottom", pady=(4, theme.PAD))
-        self.watch_label = ctk.CTkLabel(sidebar, text="", text_color=theme.GREEN)   # "Watch ●" while it runs
-        self.watch_label.pack(side="bottom", pady=(0, 8))
-
+        sidebar = self._sidebar(user)
         self.watch_switches, self._watch_job, self._watch_busy = [], None, False   # views add their switches
-        self.views, self.buttons = {}, {}
+        self.views = {}
         for name, view_class in VIEWS + (ADMIN_VIEWS if self.is_admin else []):
             self.views[name] = view_class(self.main, self)
             self.views[name].grid(row=1, column=1, sticky="nsew")
-            self.buttons[name] = ctk.CTkButton(sidebar, text=name, anchor="w", height=36,
-                                               command=lambda n=name: self.show(n))
-            self.buttons[name].pack(fill="x", padx=10, pady=3)
+        self.buttons = self._nav(sidebar)
         self.alert_bar = AlertBar(self.main, on_view=self.open_device, on_dismiss=self._dismiss)
-        self.alert_bar.grid(row=0, column=1, sticky="ew")
+        self.alert_bar.grid(row=0, column=1, sticky="ew", padx=theme.PAD, pady=(12, 0))
         self.alert_bar.grid_remove()                  # hidden until the first alert
         self.show(VIEWS[0][0])
         self._bw_ticks = 0
         self._sample_bandwidth()
+        run_async(services.wifi_link, on_done=self._show_network)   # netsh takes ~0.3 s: off the UI thread
+
+    def _sidebar(self, user):
+        """The sidebar card: logo, the optional admin sign-in (upper left), and the Wi-Fi card at the bottom."""
+        sidebar = ctk.CTkFrame(self.main, width=212)
+        sidebar.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(12, 0), pady=12)
+        sidebar.pack_propagate(False)
+        brand = ctk.CTkFrame(sidebar, fg_color="transparent")
+        brand.pack(fill="x", padx=16, pady=(16, 12))
+        ctk.CTkLabel(brand, text="", image=theme.icon("ping", theme.INK, 18), fg_color=theme.LIME, corner_radius=10,
+                     width=32, height=32).pack(side="left")
+        ctk.CTkLabel(brand, text=config.APP_TITLE, font=theme.CARD_FONT).pack(side="left", padx=10)
+        if user:   # who is signed in, with Sign out beside it
+            account = ctk.CTkFrame(sidebar, fg_color=theme.SUBTLE, corner_radius=12)
+            account.pack(fill="x", padx=8)
+            ctk.CTkLabel(account, text=user.username[:1].upper(), text_color=theme.LIME, fg_color=theme.INK,
+                         corner_radius=14, width=28, height=28, font=theme.CAPTION_FONT).pack(side="left", padx=6, pady=6)
+            ctk.CTkButton(account, text="", image=theme.icon("log-out", theme.TEXT_2, 16), width=28, height=28,
+                          command=self.sign_out, **theme.GHOST).pack(side="right", padx=6)
+            ctk.CTkLabel(account, text=f"{user.username}\n{'Administrator' if user.is_admin else 'User'}",
+                         justify="left", anchor="w", font=theme.CAPTION_FONT).pack(side="left", fill="x", expand=True)
+        else:      # signing in is optional: a guest sees this button at the upper left
+            ctk.CTkButton(sidebar, text="Admin sign in", image=theme.icon("lock", theme.TEXT, 16), compound="left",
+                          height=36, command=self.ask_login).pack(fill="x", padx=8)
+        # The bottom, packed bottom-up: the Wi-Fi card, and above it the watch state.
+        network = ctk.CTkFrame(sidebar, fg_color=theme.SUBTLE, corner_radius=12)
+        network.pack(side="bottom", fill="x", padx=8, pady=(4, 8))
+        self.ssid = ctk.CTkLabel(network, text=" Reading Wi-Fi...", image=theme.icon("wifi", theme.GREEN, 16),
+                                 compound="left", anchor="w", font=theme.BODY_FONT)
+        self.ssid.pack(fill="x", padx=12, pady=(8, 0))
+        self.rates = ctk.CTkLabel(network, text="↓ –   ↑ –", anchor="w", font=theme.MONO_FONT)
+        self.rates.pack(fill="x", padx=12, pady=(0, 8))
+        self.watch_label = ctk.CTkLabel(sidebar, text="", text_color=theme.GREEN, font=theme.CAPTION_FONT)
+        self.watch_label.pack(side="bottom")
+        return sidebar
+
+    def _nav(self, sidebar):
+        """One button per view, grouped; only the groups this user may open."""
+        buttons = {}
+        for group, items in NAV_GROUPS:
+            items = [(name, icon) for name, icon in items if name in self.views]
+            if not items:
+                continue
+            ctk.CTkLabel(sidebar, text=group, text_color=theme.MUTED, font=theme.CAPTION_FONT, anchor="w",
+                         height=20).pack(fill="x", padx=20, pady=(10, 2))
+            for name, icon in items:
+                buttons[name] = ctk.CTkButton(sidebar, text=name, image=theme.icon(icon, theme.TEXT_2), compound="left",
+                                              anchor="w", height=34, corner_radius=12, font=theme.BODY_FONT,
+                                              command=lambda n=name: self.show(n), **theme.GHOST)
+                buttons[name].pack(fill="x", padx=8, pady=1)
+        return buttons
 
     def show(self, name, **kwargs):
         """Bring a view to the front, highlight its sidebar button, and let it refresh."""
         self.current = name
         for key, button in self.buttons.items():
-            button.configure(fg_color=theme.BLUE if key == name else "transparent")
+            on = key == name
+            button.configure(fg_color=theme.INK if on else "transparent", hover_color=theme.INK if on else theme.SUBTLE,
+                             text_color=theme.SURFACE if on else theme.TEXT_2,
+                             image=theme.icon(ICONS[key], theme.LIME if on else theme.TEXT_2))
         self.views[name].tkraise()
         self.views[name].on_show(**kwargs)
+
+    def _show_network(self, result):
+        link, note = result
+        if self.main:   # not signed in or out while netsh ran
+            self.ssid.configure(text=f" {link.ssid}" if link else f" {'Wired or offline' if note else 'No network'}",
+                                image=theme.icon("wifi", theme.GREEN if link else theme.MUTED, 16))
 
     def _sample_bandwidth(self):
         """Once a second while the window is open: this PC's download and upload rates, and any limit just passed."""
         self._bw_job = self.after(config.BW_SAMPLE_MS, self._sample_bandwidth)   # reschedule first, like the pump
         sample = services.bandwidth_sample()     # reads two counters: no network traffic, about 5 ms
         if sample:
+            self.rates.configure(text=f"↓ {sample.down_mbps:.1f}   ↑ {sample.up_mbps:.1f} Mbps")
             self.views["Connection"].add_sample(sample)
             for detail in sample.alerts:         # storing one works out the network id (about 0.2 s): a worker does it
                 run_async(services.record_event, "bandwidth", "warning", None, None, detail, on_done=self.alert)

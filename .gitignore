@@ -17,3 +17,6 @@ VideoDemo/*
 
 # Word lock files, created while a document is open
 ~$*
+
+# UI inspiration images for the redesign; reference only, not part of the project
+ui inspo/

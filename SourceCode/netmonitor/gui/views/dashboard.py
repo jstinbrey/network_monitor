@@ -28,7 +28,7 @@ class DashboardView(ctk.CTkFrame):
         self.scan_button = ctk.CTkButton(bar, text="Scan and refresh" if app.is_admin else "Refresh",
                                          command=self.scan_and_refresh)
         self.scan_button.pack(side="left")
-        self.diagnose_button = ctk.CTkButton(bar, text="Diagnose network", command=self.diagnose)
+        self.diagnose_button = ctk.CTkButton(bar, text="Diagnose network", command=self.diagnose, **theme.PRIMARY)
         self.diagnose_button.pack(side="left", padx=(8, 0))
         self.status = ctk.CTkLabel(bar, text="", text_color=theme.MUTED)
         self.status.pack(side="left", padx=12)
@@ -57,13 +57,13 @@ class DashboardView(ctk.CTkFrame):
         alerts = ctk.CTkFrame(middle, width=ALERTS_WIDTH)
         alerts.pack(side="right", fill="y", padx=(12, 0))
         alerts.pack_propagate(False)                   # the chart sets the height; long alerts wrap
-        ctk.CTkLabel(alerts, text="Recent alerts", font=("Segoe UI", 14, "bold")).pack(anchor="w", padx=12, pady=(8, 4))
+        ctk.CTkLabel(alerts, text="Recent alerts", font=theme.CARD_FONT).pack(anchor="w", padx=12, pady=(8, 4))
         self.alert_rows = ctk.CTkFrame(alerts, fg_color="transparent")
         self.alert_rows.pack(fill="both", expand=True, padx=12)
 
         heading = ctk.CTkFrame(self, fg_color="transparent")
         heading.pack(fill="x", padx=theme.PAD)
-        ctk.CTkLabel(heading, text="Top recommendations", font=("Segoe UI", 14, "bold")).pack(side="left")
+        ctk.CTkLabel(heading, text="Top recommendations", font=theme.CARD_FONT).pack(side="left")
         ctk.CTkButton(heading, text="View all", width=90, command=lambda: app.show("Security")).pack(side="right")
         self.recommendations = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.recommendations.pack(fill="both", expand=True, padx=theme.PAD, pady=(4, theme.PAD))
@@ -147,7 +147,7 @@ class DashboardView(ctk.CTkFrame):
         for title, (text, color) in shown.items():
             if not summary.devices:
                 text, color = "-", None            # no scan yet: do not show a red 0 / 100
-            self.values[title].configure(text=text, text_color=color or ("gray10", "gray90"))
+            self.values[title].configure(text=text, text_color=color or theme.TEXT)
         # The Wi-Fi card does not depend on a scan: wired, or the details withheld, shows a muted word.
         self.values["Wi-Fi signal"].configure(
             text=f"{link.signal_pct}%" if link else "Wired" if note.startswith("Not on Wi-Fi") else "-",

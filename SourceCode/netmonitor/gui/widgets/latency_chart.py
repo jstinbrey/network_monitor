@@ -5,7 +5,7 @@ from matplotlib.figure import Figure   # Figure directly, not pyplot: pyplot kee
 
 from netmonitor.gui import theme
 
-BACKGROUND, TEXT = "#2b2b2b", "#e6e6e6"
+BACKGROUND, TEXT = theme.SURFACE, theme.TEXT_2
 
 
 class LatencyChart(ctk.CTkFrame):
@@ -25,7 +25,7 @@ class LatencyChart(ctk.CTkFrame):
         on_pick: when given, clicking a bar calls on_pick(index of that bar in labels).
         """
         self.axes.clear()
-        self._bars = list(self.axes.bar(labels, values, color=theme.BLUE, picker=on_pick is not None))
+        self._bars = list(self.axes.bar(labels, values, color=theme.INK, picker=on_pick is not None))
         self._on_pick = on_pick
         self.axes.set_title(title, color=TEXT)
         self.axes.set_ylabel(unit, color=TEXT)
@@ -35,7 +35,7 @@ class LatencyChart(ctk.CTkFrame):
             self.axes.set_xticks([])
             self.axes.set_yticks([])
         for spine in self.axes.spines.values():
-            spine.set_color(theme.MUTED)
+            spine.set_color(theme.BORDER)
         self.figure.tight_layout()
         self.canvas.draw_idle()
 

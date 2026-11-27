@@ -25,13 +25,13 @@ class TracerouteView(ctk.CTkFrame):
         self.target = ctk.CTkEntry(bar, width=240, placeholder_text="IP address or name, e.g. 1.1.1.1")
         self.target.pack(side="left")
         self.target.bind("<Return>", lambda event: self.trace())
-        self.button = ctk.CTkButton(bar, text="Trace", command=self.trace)
+        self.button = ctk.CTkButton(bar, text="Trace", command=self.trace, **theme.PRIMARY)
         self.button.pack(side="left", padx=12)
         self.status = ctk.CTkLabel(bar, text="", text_color=theme.MUTED)
         self.status.pack(side="left")
 
         self.verdict = ctk.CTkLabel(self, text="Each hop is one router; each probe is one reply time.", anchor="w",
-                                    justify="left", wraplength=780, text_color=theme.MUTED, font=("Segoe UI", 14, "bold"))
+                                    justify="left", wraplength=780, text_color=theme.MUTED, font=theme.CARD_FONT)
         self.verdict.pack(fill="x", padx=theme.PAD, pady=10)
 
         self.table = ttk.Treeview(self, columns=[key for key, _, _ in COLUMNS], show="headings", height=10)

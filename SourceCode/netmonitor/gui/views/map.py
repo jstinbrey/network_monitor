@@ -31,7 +31,7 @@ class MapView(ctk.CTkFrame):
         self.refresh_button = ctk.CTkButton(bar, text="Refresh", width=100, command=self.refresh)
         self.refresh_button.pack(side="left")
         self.scan_button = ctk.CTkButton(bar, text="Scan" if app.is_admin else "Scan (Admin)", width=100,
-                                         state="normal" if app.is_admin else "disabled",
+                                         state="normal" if app.is_admin else "disabled", **theme.PRIMARY,
                                          command=lambda: self.refresh(scan=True))
         self.scan_button.pack(side="left", padx=8)
         self.filter = ctk.CTkSegmentedButton(bar, values=FILTERS, command=lambda mode: self._redraw())
@@ -42,11 +42,11 @@ class MapView(ctk.CTkFrame):
 
         footer = ctk.CTkFrame(self, fg_color="transparent")     # packed before the canvas, so it keeps its room
         footer.pack(side="bottom", fill="x", padx=theme.PAD, pady=(6, theme.PAD))
-        self.verdict = ctk.CTkLabel(footer, text="", font=("Segoe UI", 14, "bold"), anchor="w")
+        self.verdict = ctk.CTkLabel(footer, text="", font=theme.CARD_FONT, anchor="w")
         self.verdict.pack(side="left")
         for mark, color, label in reversed(LEGEND):
             ctk.CTkLabel(footer, text=label, text_color=theme.MUTED).pack(side="right", padx=(2, 10))
-            ctk.CTkLabel(footer, text=mark, text_color=color, font=("Segoe UI", 14, "bold")).pack(side="right")
+            ctk.CTkLabel(footer, text=mark, text_color=color, font=theme.CARD_FONT).pack(side="right")
         ctk.CTkLabel(self, text="Logical map: every device reaches the internet through the gateway. Switches and "
                                 "access points are not shown. Drag a device, drag the background to pan, scroll to "
                                 "zoom, click for details, right-click for actions.",

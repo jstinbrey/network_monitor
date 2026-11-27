@@ -1,0 +1,780 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-27T15:11:33+08:00",
+  "title": "Design System: NetMonitor",
+  "extensions": {
+    "colorMeta": {
+      "bg-canvas": {
+        "role": "neutral",
+        "displayName": "Bench Grey",
+        "canonical": "#F1F2EE",
+        "dark": "#0F1113",
+        "oklch": "oklch(95.9% 0.005 117.9)",
+        "tonalRamp": [
+          "#0B0B0A",
+          "#242421",
+          "#3F403D",
+          "#5D5E5B",
+          "#80817D",
+          "#A4A5A1",
+          "#CACBC7",
+          "#EEEFEC"
+        ]
+      },
+      "bg-surface": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "#FFFFFF",
+        "dark": "#181B1E",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#242424",
+          "#404040",
+          "#5D5D5D",
+          "#808080",
+          "#A4A4A4",
+          "#CACACA",
+          "#EEEEEE"
+        ]
+      },
+      "bg-subtle": {
+        "role": "neutral",
+        "displayName": "Mist",
+        "canonical": "#F6F7F3",
+        "dark": "#22262A",
+        "oklch": "oklch(97.4% 0.005 117.9)",
+        "tonalRamp": [
+          "#0B0B0A",
+          "#242421",
+          "#3F403D",
+          "#5D5E5B",
+          "#80817D",
+          "#A4A5A1",
+          "#CACBC7",
+          "#EEEFEC"
+        ]
+      },
+      "bg-inverse": {
+        "role": "neutral",
+        "displayName": "Instrument Ink",
+        "canonical": "#16191B",
+        "dark": "#ECEDE8",
+        "oklch": "oklch(21.1% 0.006 236.9)",
+        "tonalRamp": [
+          "#0A0B0C",
+          "#212427",
+          "#3D4043",
+          "#5A5E61",
+          "#7D8183",
+          "#A1A5A8",
+          "#C7CBCE",
+          "#ECEFF1"
+        ]
+      },
+      "bg-inverse-hover": {
+        "role": "neutral",
+        "displayName": "Instrument Ink, hover",
+        "canonical": "#2D3337",
+        "dark": "#D6D9D1",
+        "oklch": "oklch(31.7% 0.011 237.0)",
+        "tonalRamp": [
+          "#090C0E",
+          "#1F2529",
+          "#3A4145",
+          "#585F63",
+          "#7A8186",
+          "#9EA6AB",
+          "#C4CCD1",
+          "#EBEFF2"
+        ]
+      },
+      "border-default": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#E3E5DF",
+        "dark": "#2C3136",
+        "oklch": "oklch(91.9% 0.008 121.6)",
+        "tonalRamp": [
+          "#0B0B09",
+          "#232520",
+          "#3F403C",
+          "#5D5E59",
+          "#7F817C",
+          "#A4A5A0",
+          "#C9CBC5",
+          "#EEEFEB"
+        ]
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Strong Hairline",
+        "canonical": "#CBD0C7",
+        "dark": "#3B4147",
+        "oklch": "oklch(85.1% 0.013 130.8)",
+        "tonalRamp": [
+          "#0A0C08",
+          "#22251F",
+          "#3D413A",
+          "#5B5F57",
+          "#7D827A",
+          "#A2A69E",
+          "#C7CCC3",
+          "#ECF0EA"
+        ]
+      },
+      "border-control": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "#828881",
+        "dark": "#7A828A",
+        "oklch": "oklch(62.0% 0.013 141.2)",
+        "tonalRamp": [
+          "#090C09",
+          "#212620",
+          "#3C413B",
+          "#5A5F59",
+          "#7C827B",
+          "#A0A79F",
+          "#C6CDC5",
+          "#ECF0EB"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#16191B",
+        "dark": "#ECEDE8",
+        "oklch": "oklch(21.1% 0.006 236.9)",
+        "tonalRamp": [
+          "#0A0B0C",
+          "#212427",
+          "#3D4043",
+          "#5A5E61",
+          "#7D8183",
+          "#A1A5A8",
+          "#C7CBCE",
+          "#ECEFF1"
+        ]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Slate",
+        "canonical": "#555B62",
+        "dark": "#B3B8BE",
+        "oklch": "oklch(46.8% 0.014 252.2)",
+        "tonalRamp": [
+          "#090B0F",
+          "#1F252B",
+          "#3B4047",
+          "#585E65",
+          "#7B8188",
+          "#9FA5AD",
+          "#C4CBD3",
+          "#EBEFF4"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Pewter",
+        "canonical": "#676D75",
+        "dark": "#9198A0",
+        "oklch": "oklch(53.2% 0.015 255.6)",
+        "tonalRamp": [
+          "#090B0F",
+          "#1F242B",
+          "#3B4048",
+          "#585E66",
+          "#7B8189",
+          "#9FA5AE",
+          "#C4CBD4",
+          "#EBEFF4"
+        ]
+      },
+      "text-on-inverse": {
+        "role": "neutral",
+        "displayName": "Text on Ink",
+        "canonical": "#FFFFFF",
+        "dark": "#16191B",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#242424",
+          "#404040",
+          "#5D5D5D",
+          "#808080",
+          "#A4A4A4",
+          "#CACACA",
+          "#EEEEEE"
+        ]
+      },
+      "text-on-inverse-muted": {
+        "role": "neutral",
+        "displayName": "Muted text on Ink",
+        "canonical": "#A3A9AE",
+        "dark": "#4E545B",
+        "oklch": "oklch(73.2% 0.010 242.9)",
+        "tonalRamp": [
+          "#090B0D",
+          "#202529",
+          "#3B4045",
+          "#595E63",
+          "#7B8186",
+          "#9FA5AA",
+          "#C5CBD1",
+          "#EBEFF2"
+        ]
+      },
+      "accent-lime": {
+        "role": "primary",
+        "displayName": "Signal Lime",
+        "canonical": "#C8F05A",
+        "dark": "#C8F05A",
+        "oklch": "oklch(89.8% 0.180 122.8)",
+        "tonalRamp": [
+          "#050F00",
+          "#172C00",
+          "#304B00",
+          "#4C6B00",
+          "#6D8F00",
+          "#91B500",
+          "#B6DC43",
+          "#E1FBA9"
+        ]
+      },
+      "accent-lime-hover": {
+        "role": "primary",
+        "displayName": "Signal Lime, hover",
+        "canonical": "#B8E24A",
+        "dark": "#D6F57E",
+        "oklch": "oklch(85.5% 0.181 123.6)",
+        "tonalRamp": [
+          "#040F00",
+          "#142D00",
+          "#2E4B00",
+          "#4A6B00",
+          "#6B9000",
+          "#8EB600",
+          "#B3DD44",
+          "#E0FBAA"
+        ]
+      },
+      "accent-lime-soft": {
+        "role": "primary",
+        "displayName": "Signal Lime Wash",
+        "canonical": "#EEF9CF",
+        "dark": "#2A3314",
+        "oklch": "oklch(96.3% 0.056 119.4)",
+        "tonalRamp": [
+          "#0A0D00",
+          "#212804",
+          "#3C4420",
+          "#5A623E",
+          "#7C855F",
+          "#A0AA83",
+          "#C6D0A8",
+          "#EBF2D9"
+        ]
+      },
+      "accent-on-lime": {
+        "role": "primary",
+        "displayName": "Text on Signal Lime",
+        "canonical": "#16191B",
+        "dark": "#16191B",
+        "oklch": "oklch(21.1% 0.006 236.9)",
+        "tonalRamp": [
+          "#0A0B0C",
+          "#212427",
+          "#3D4043",
+          "#5A5E61",
+          "#7D8183",
+          "#A1A5A8",
+          "#C7CBCE",
+          "#ECEFF1"
+        ]
+      },
+      "accent-on-lime-soft": {
+        "role": "primary",
+        "displayName": "Text on Lime Wash",
+        "canonical": "#16191B",
+        "dark": "#D4F27C",
+        "oklch": "oklch(21.1% 0.006 236.9)",
+        "tonalRamp": [
+          "#0A0B0C",
+          "#212427",
+          "#3D4043",
+          "#5A5E61",
+          "#7D8183",
+          "#A1A5A8",
+          "#C7CBCE",
+          "#ECEFF1"
+        ]
+      },
+      "accent-on-inverse": {
+        "role": "primary",
+        "displayName": "Lime on Ink",
+        "canonical": "#C8F05A",
+        "dark": "#44600F",
+        "oklch": "oklch(89.8% 0.180 122.8)",
+        "tonalRamp": [
+          "#050F00",
+          "#172C00",
+          "#304B00",
+          "#4C6B00",
+          "#6D8F00",
+          "#91B500",
+          "#B6DC43",
+          "#E1FBA9"
+        ]
+      },
+      "status-online": {
+        "role": "status",
+        "displayName": "Online Green",
+        "canonical": "#1A7A46",
+        "dark": "#5FCF8E",
+        "oklch": "oklch(51.3% 0.119 154.0)",
+        "tonalRamp": [
+          "#001200",
+          "#003202",
+          "#00501F",
+          "#06703D",
+          "#3B955F",
+          "#63BA82",
+          "#89E1A7",
+          "#CAFDD9"
+        ]
+      },
+      "status-online-soft": {
+        "role": "status",
+        "displayName": "Online Wash",
+        "canonical": "#E1F3E8",
+        "dark": "#11301F",
+        "oklch": "oklch(94.8% 0.024 159.1)",
+        "tonalRamp": [
+          "#060D09",
+          "#1A2820",
+          "#35443B",
+          "#536259",
+          "#75857B",
+          "#99A99F",
+          "#BED0C5",
+          "#E7F2EB"
+        ]
+      },
+      "status-warn": {
+        "role": "status",
+        "displayName": "Amber",
+        "canonical": "#9B5E0A",
+        "dark": "#F0B455",
+        "oklch": "oklch(53.8% 0.117 65.9)",
+        "tonalRamp": [
+          "#1D0200",
+          "#460E00",
+          "#672E00",
+          "#894D00",
+          "#AF7027",
+          "#D6954F",
+          "#FEBB75",
+          "#FFE6BD"
+        ]
+      },
+      "status-warn-soft": {
+        "role": "status",
+        "displayName": "Amber Wash",
+        "canonical": "#FCEFD8",
+        "dark": "#372914",
+        "oklch": "oklch(95.6% 0.033 82.0)",
+        "tonalRamp": [
+          "#0F0A03",
+          "#2C2210",
+          "#493E2B",
+          "#675C48",
+          "#8A7F6A",
+          "#AFA38D",
+          "#D6C9B3",
+          "#F5EEE0"
+        ]
+      },
+      "status-bad": {
+        "role": "status",
+        "displayName": "Alarm Red",
+        "canonical": "#BB3636",
+        "dark": "#F28585",
+        "oklch": "oklch(53.3% 0.170 25.0)",
+        "tonalRamp": [
+          "#290000",
+          "#5E0000",
+          "#830003",
+          "#A92227",
+          "#D24C49",
+          "#FD736D",
+          "#FF9A91",
+          "#FFD4CC"
+        ]
+      },
+      "status-bad-soft": {
+        "role": "status",
+        "displayName": "Alarm Wash",
+        "canonical": "#FBE4E2",
+        "dark": "#3A1A1A",
+        "oklch": "oklch(93.7% 0.025 23.6)",
+        "tonalRamp": [
+          "#110908",
+          "#2F1F1E",
+          "#4C3B39",
+          "#6B5857",
+          "#8F7B79",
+          "#B49F9D",
+          "#DBC5C3",
+          "#F9EBEA"
+        ]
+      },
+      "status-info": {
+        "role": "status",
+        "displayName": "Info Blue",
+        "canonical": "#2B5FCC",
+        "dark": "#86AAF7",
+        "oklch": "oklch(51.5% 0.179 262.7)",
+        "tonalRamp": [
+          "#000037",
+          "#000378",
+          "#01319C",
+          "#2154C0",
+          "#437AE9",
+          "#66A0FF",
+          "#8BC7FF",
+          "#C8EFFF"
+        ]
+      },
+      "status-info-soft": {
+        "role": "status",
+        "displayName": "Info Wash",
+        "canonical": "#E3EBFA",
+        "dark": "#172440",
+        "oklch": "oklch(93.8% 0.022 263.2)",
+        "tonalRamp": [
+          "#080B11",
+          "#1E242F",
+          "#3A404C",
+          "#575E6A",
+          "#79808E",
+          "#9DA5B3",
+          "#C3CBD9",
+          "#EAEFF8"
+        ]
+      },
+      "chart-paper": {
+        "role": "chart",
+        "displayName": "Chart Paper",
+        "canonical": "#16191B",
+        "dark": "#0A0C0D",
+        "oklch": "oklch(21.1% 0.006 236.9)",
+        "tonalRamp": [
+          "#0A0B0C",
+          "#212427",
+          "#3D4043",
+          "#5A5E61",
+          "#7D8183",
+          "#A1A5A8",
+          "#C7CBCE",
+          "#ECEFF1"
+        ]
+      },
+      "chart-grid": {
+        "role": "chart",
+        "displayName": "Chart Grid",
+        "canonical": "#2A3034",
+        "dark": "#242A2E",
+        "oklch": "oklch(30.5% 0.011 237.0)",
+        "tonalRamp": [
+          "#090C0E",
+          "#1F2529",
+          "#3A4145",
+          "#585F63",
+          "#7A8186",
+          "#9EA6AB",
+          "#C4CCD1",
+          "#EAEFF2"
+        ]
+      },
+      "chart-trace": {
+        "role": "chart",
+        "displayName": "Live Trace",
+        "canonical": "#C8F05A",
+        "dark": "#C8F05A",
+        "oklch": "oklch(89.8% 0.180 122.8)",
+        "tonalRamp": [
+          "#050F00",
+          "#172C00",
+          "#304B00",
+          "#4C6B00",
+          "#6D8F00",
+          "#91B500",
+          "#B6DC43",
+          "#E1FBA9"
+        ]
+      },
+      "chart-text": {
+        "role": "chart",
+        "displayName": "Chart Text",
+        "canonical": "#FFFFFF",
+        "dark": "#FFFFFF",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#242424",
+          "#404040",
+          "#5D5D5D",
+          "#808080",
+          "#A4A4A4",
+          "#CACACA",
+          "#EEEEEE"
+        ]
+      },
+      "chart-text-muted": {
+        "role": "chart",
+        "displayName": "Chart Text, muted",
+        "canonical": "#A3A9AE",
+        "dark": "#A3A9AE",
+        "oklch": "oklch(73.2% 0.010 242.9)",
+        "tonalRamp": [
+          "#090B0D",
+          "#202529",
+          "#3B4045",
+          "#595E63",
+          "#7B8186",
+          "#9FA5AA",
+          "#C5CBD1",
+          "#EBEFF2"
+        ]
+      },
+      "chart-series-2": {
+        "role": "chart",
+        "displayName": "Second Series Blue",
+        "canonical": "#86AAF7",
+        "dark": "#86AAF7",
+        "oklch": "oklch(74.3% 0.119 264.5)",
+        "tonalRamp": [
+          "#010728",
+          "#061B5C",
+          "#1F3A7E",
+          "#3B5AA0",
+          "#5C7EC7",
+          "#7FA3EF",
+          "#A4C9FF",
+          "#D7EFFF"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Big numbers on stat cards and the health score."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles and the diagnosis verdict."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card and section titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Sentences and table text."
+      },
+      "body-medium": {
+        "displayName": "Body Medium",
+        "purpose": "Button, nav and emphasised labels."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Captions, metadata, chip and tag text."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "IPs, MACs, latency, ping output."
+      },
+      "mono-display": {
+        "displayName": "Mono Display",
+        "purpose": "The live reply readout."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card-lift",
+        "value": "0 1px 2px rgba(23,26,20,0.04), 0 8px 24px -4px rgba(23,26,20,0.05)",
+        "purpose": "Optional ambient lift for cards; tonal separation must work without it."
+      },
+      {
+        "name": "overlay",
+        "value": "0 24px 64px -8px rgba(13,15,13,0.18)",
+        "purpose": "Dialogs, menus, the device drawer, the floating selection bar."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 2px #FFFFFF, 0 0 0 4px #16191B",
+        "purpose": "Keyboard focus on buttons."
+      }
+    ],
+    "motion": [
+      {
+        "name": "press",
+        "value": "transform 120ms ease-out; scale(.97) while pressed",
+        "purpose": "Button press feedback."
+      },
+      {
+        "name": "hover",
+        "value": "background-color 120ms ease-out",
+        "purpose": "Hover color change on buttons, rows and nav items."
+      },
+      {
+        "name": "drawer",
+        "value": "transform 240ms cubic-bezier(0.32, 0.72, 0, 1)",
+        "purpose": "Device drawer sliding in from the right. View switches do not animate."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "window-min",
+        "value": "1000x640"
+      },
+      {
+        "name": "window-default",
+        "value": "1180x720"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action on a screen.",
+      "html": "<button class=\"ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/></svg><span>Diagnose network</span></button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border:0;border-radius:999px;background:#16191B;color:#FFFFFF;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:background-color 120ms ease-out,transform 120ms ease-out}.ds-btn-primary:hover{background:#2D3337}.ds-btn-primary:active{transform:scale(.97)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 2px #FFFFFF,0 0 0 4px #16191B}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Supporting actions next to the primary one.",
+      "html": "<button class=\"ds-btn-secondary\">Refresh</button>",
+      "css": ".ds-btn-secondary{height:40px;padding:0 16px;border:1px solid #CBD0C7;border-radius:999px;background:#FFFFFF;color:#16191B;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:background-color 120ms ease-out}.ds-btn-secondary:hover{background:#F6F7F3}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 2px #FFFFFF,0 0 0 4px #16191B}"
+    },
+    {
+      "name": "Locked Button",
+      "kind": "button",
+      "refersTo": "button-locked",
+      "description": "An admin-only action shown to a guest.",
+      "html": "<button class=\"ds-btn-locked\" aria-disabled=\"true\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg><span>Scan network</span></button>",
+      "css": ".ds-btn-locked{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border:1px solid #E3E5DF;border-radius:999px;background:#F6F7F3;color:#676D75;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;font-size:13px;font-weight:500;cursor:not-allowed}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "chip-online",
+      "description": "Device status: dot plus a word, never color alone.",
+      "html": "<span class=\"ds-chip ds-chip-on\"><i></i>Online</span> <span class=\"ds-chip ds-chip-warn\"><i></i>Degraded</span> <span class=\"ds-chip ds-chip-bad\"><i></i>Offline</span>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 8px;border-radius:999px;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;font-size:12px;font-weight:500}.ds-chip i{width:6px;height:6px;border-radius:50%;background:currentColor}.ds-chip-on{background:#E1F3E8;color:#1A7A46}.ds-chip-warn{background:#FCEFD8;color:#9B5E0A}.ds-chip-bad{background:#FBE4E2;color:#BB3636}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled input with a 3:1 Control Edge outline and an ink focus outline.",
+      "html": "<label class=\"ds-field\"><span>IP address</span><input class=\"ds-input\" value=\"192.168.1.5\"></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:6px;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;font-size:12px;font-weight:500;color:#555B62}.ds-input{height:40px;padding:0 12px;border:1px solid #828881;border-radius:12px;background:#FFFFFF;color:#16191B;font-family:'Cascadia Mono',Consolas,monospace;font-size:12px}.ds-input:focus-visible{outline:none;border:2px solid #16191B;padding:0 11px}"
+    },
+    {
+      "name": "Navigation Item",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Sidebar entry; the active one is ink with a lime icon.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item is-active\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/></svg><span>Ping</span></a><a class=\"ds-nav-item\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/></svg><span>Traceroute</span></a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:2px;width:196px}.ds-nav-item{display:flex;align-items:center;gap:12px;height:34px;padding:0 12px;border-radius:12px;color:#555B62;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;transition:background-color 120ms ease-out}.ds-nav-item:hover{background:#F6F7F3;color:#16191B}.ds-nav-item.is-active{background:#16191B;color:#FFFFFF}.ds-nav-item.is-active svg{color:#C8F05A}.ds-nav-item:focus-visible{outline:2px solid #16191B;outline-offset:-2px}"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A label, one large number and a short note.",
+      "html": "<div class=\"ds-stat\"><span class=\"ds-stat-t\">Average latency</span><span class=\"ds-stat-v\">18 ms</span><span class=\"ds-stat-n\">Usual for this network</span></div>",
+      "css": ".ds-stat{display:flex;flex-direction:column;gap:8px;width:200px;padding:16px;border-radius:20px;background:#FFFFFF;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;}.ds-stat-t{font-size:12px;font-weight:500;color:#555B62}.ds-stat-v{font-size:32px;font-weight:600;letter-spacing:-.02em;line-height:1.1;color:#16191B}.ds-stat-n{font-size:12px;font-weight:500;color:#676D75}"
+    },
+    {
+      "name": "Diagnosis Card",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Signature: verdict headline, one sentence, four checked steps.",
+      "html": "<div class=\"ds-verdict\"><h3>Your network is healthy</h3><p>Checked 2 minutes ago. Every step answered, from this PC out to DNS.</p><ol><li><b><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg></b>This PC<em>192.168.1.8</em></li><li><b><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg></b>Router<em>1 ms</em></li><li><b><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg></b>Internet<em>18 ms</em></li><li><b><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg></b>DNS<em>24 ms</em></li></ol></div>",
+      "css": ".ds-verdict{width:520px;padding:18px 24px;border-radius:20px;background:#16191B;color:#FFFFFF;font-family:'Plus Jakarta Sans','Segoe UI',sans-serif;}.ds-verdict h3{margin:0;font-size:24px;font-weight:600;letter-spacing:-.01em}.ds-verdict p{margin:4px 0 16px;font-size:13px;color:#A3A9AE}.ds-verdict ol{display:flex;justify-content:space-between;margin:0;padding:0;list-style:none}.ds-verdict li{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:500}.ds-verdict b{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#C8F05A;color:#16191B}.ds-verdict em{font-style:normal;font-family:'Cascadia Mono',Consolas,monospace;font-size:12px;color:#A3A9AE}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Network Check-up",
+    "overview": "NetMonitor examines a home or campus network the way a good check-up examines a person: it takes the readings, says in one plain sentence whether things are healthy, and only then shows the charts. The health score, the heart-monitor ping chart and the layer-by-layer diagnosis are the same idea expressed three ways. Every screen leads with a verdict (\"Your network is healthy\", \"Delay starts at hop 5, inside your provider's network\", \"Printer is the slowest device\") and keeps the measurements one glance below it.\n\nThe voice is calm and plain, like a technician who has seen this before: it names the problem, then the fix, and never raises its voice until something is actually wrong. The look is soft and confident: a pale grey canvas, white rounded cards, pill buttons, one dark primary action per screen, and a single lime signal for what is live or selected. Density is a desktop tool's density (13px body, 34–54px rows), not a marketing page's.\n\nThe visual direction was pinned by the project's inspiration boards (light cards on grey, big numbers, one lime accent). It replaces the earlier default dark CustomTkinter look.",
+    "keyCharacteristics": [
+      "Verdict first, numbers second, raw output last.",
+      "One accent (Signal Lime) for live and selected states only; status has its own colors and always carries a word.",
+      "Light by default with a full dark mode; every color is a token, so dark mode is a value swap, not a redesign.",
+      "Built for CustomTkinter: solid fills, rounded corners and matplotlib charts; nothing that needs blur or gradients."
+    ],
+    "rules": [
+      {
+        "name": "The One Signal Rule",
+        "section": "colors",
+        "body": "Signal Lime means \"live\" or \"selected\" and nothing else. It is never a status color: a healthy device is Online Green, not lime."
+      },
+      {
+        "name": "The Word-With-Color Rule",
+        "section": "colors",
+        "body": "Every status shows a dot or icon plus a word (\"Offline\", \"Up, no ping reply\"). Color alone never carries meaning."
+      },
+      {
+        "name": "The Lime-on-Ink Rule",
+        "section": "colors",
+        "body": "Lime marks that sit on Instrument Ink use `accent-on-inverse`, which becomes dark olive in dark mode; lime is unreadable on the light inverse surface."
+      },
+      {
+        "name": "The Live-on-Paper Rule",
+        "section": "colors",
+        "body": "Anything that updates while you watch (the ping trace, the bandwidth chart, the diagnosis) sits on Chart Paper in both modes. History, tables and settings sit on Paper White."
+      },
+      {
+        "name": "The Red-Means-Loss Rule",
+        "section": "colors",
+        "body": "Alarm Red marks failures, critical findings and irreversible actions only. Routine controls such as Stop are Instrument Ink."
+      },
+      {
+        "name": "The Measured-Means-Mono Rule",
+        "section": "typography",
+        "body": "A value the network produced (address, time, count of replies) is set in Cascadia Mono; a word a person wrote is set in Plus Jakarta Sans. Mono is never decoration. The one exception is the big Display number on a stat card, which stays in Plus Jakarta Sans so it reads at a glance."
+      },
+      {
+        "name": "The Tonal-First Rule",
+        "section": "elevation",
+        "body": "If removing every shadow makes any card disappear into the canvas, the colors are wrong, not the shadows."
+      }
+    ],
+    "dos": [
+      "**Do** open every view with a one-sentence verdict before any table or chart.",
+      "**Do** pair every status color with a word, and keep Signal Lime for live and selected states only.",
+      "**Do** outline inputs, checkboxes, switches and radios in Control Edge (`border-control`) so they clear 3:1 on every surface.",
+      "**Do** show admin-only actions to guests as Locked buttons, not hide them.",
+      "**Do** put the result next to its action: port warnings beside \"Check ports\", errors under the field that caused them.",
+      "**Do** test every screen at 1000×640 and in dark mode.",
+      "**Do** let the Dashboard verdict and health score follow the worst open finding; never call a network healthy while a critical problem is open.",
+      "**Do** use one verb per action: Scan network (find devices), Re-test devices (ping known devices), Diagnose network (run the chain), Trace, Check ports."
+    ],
+    "donts": [
+      "**Don't** use lime as a status color or as text on a light surface.",
+      "**Don't** put a small label or \"eyebrow\" above a heading; the heading carries its own weight.",
+      "**Don't** mark severity with a colored strip down the edge of a card; use the icon badge and severity chip.",
+      "**Don't** repeat the same number in two places on one screen.",
+      "**Don't** rely on a shadow to separate a card from the canvas.",
+      "**Don't** use emoji or Unicode glyphs as icons; use the Lucide set.",
+      "**Don't** use Alarm Red for routine controls such as Stop."
+    ]
+  }
+}

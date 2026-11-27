@@ -41,14 +41,14 @@ class AdminView(ctk.CTkFrame):
         for text, command in (("Add user", self.add_user), ("Reset password of selected", self.reset_password),
                               ("Set role of selected", self.set_role)):
             ctk.CTkButton(form, text=text, command=command).pack(fill="x", pady=(0, 8))
-        ctk.CTkButton(form, text="Delete selected", fg_color=theme.RED, hover_color="#b52b27",
+        ctk.CTkButton(form, text="Delete selected", **theme.DANGER,
                       command=self.delete_user).pack(fill="x", pady=(0, 8))
         self.status = ctk.CTkLabel(form, text="", wraplength=FORM_WIDTH, justify="left", anchor="w")
         self.status.pack(fill="x")
 
         # --- Settings tab: bandwidth limits and the watch interval, then clearing history.
         settings = tabs.add("Settings")
-        ctk.CTkLabel(settings, text="Limits and watch mode", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        ctk.CTkLabel(settings, text="Limits and watch mode", font=theme.CARD_FONT).pack(anchor="w")
         ctk.CTkLabel(settings, text_color=theme.MUTED, justify="left", anchor="w",
                      text=f"0 means no limit. A rate above its limit for {config.BW_SUSTAIN_S} s raises an alert, "
                           "and so do 80% and 100% of the daily cap.\n"
@@ -61,15 +61,15 @@ class AdminView(ctk.CTkFrame):
             ctk.CTkLabel(form, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 12), pady=3)
             self.limits[key] = ctk.CTkEntry(form, width=100)
             self.limits[key].grid(row=row, column=1, pady=3)
-        ctk.CTkButton(settings, text="Save settings", command=self.save_limits).pack(anchor="w", pady=(8, 0))
+        ctk.CTkButton(settings, text="Save settings", command=self.save_limits, **theme.PRIMARY).pack(anchor="w", pady=(8, 0))
         self.limits_status = ctk.CTkLabel(settings, text="", anchor="w")
         self.limits_status.pack(anchor="w", pady=(4, 16))
 
-        ctk.CTkLabel(settings, text="Clear history for this network", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        ctk.CTkLabel(settings, text="Clear history for this network", font=theme.CARD_FONT).pack(anchor="w")
         ctk.CTkLabel(settings, text_color=theme.MUTED, justify="left", anchor="w",
                      text="Deletes the devices, ping results and alerts stored for the network this PC is on now.\n"
                           "Accounts and the history of other networks are kept.").pack(anchor="w", pady=(2, 8))
-        ctk.CTkButton(settings, text="Clear history", fg_color=theme.RED, hover_color="#b52b27",
+        ctk.CTkButton(settings, text="Clear history", **theme.DANGER,
                       command=self.clear_history).pack(anchor="w")
         self.settings_status = ctk.CTkLabel(settings, text="", anchor="w")
         self.settings_status.pack(anchor="w", pady=8)

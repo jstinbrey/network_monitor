@@ -22,16 +22,16 @@ class DevicesView(ctk.CTkFrame):
         # Only an Admin may scan. A User sees the button greyed out, so the feature is still visible.
         self.scan_state = "normal" if app.is_admin else "disabled"   # the button's state while no scan runs
         self.scan_button = ctk.CTkButton(bar, text="Scan network" if app.is_admin else "Scan network (Admin)",
-                                         command=self.scan, state=self.scan_state)
+                                         command=self.scan, state=self.scan_state, **theme.PRIMARY)
         self.scan_button.pack(side="left")
-        self.progress = ctk.CTkProgressBar(bar, width=260)
+        self.progress = ctk.CTkProgressBar(bar, width=160)
         self.progress.set(0)
         self.progress.pack(side="left", padx=12)
-        self.status = ctk.CTkLabel(bar, text="No devices yet. Run a scan.", text_color=theme.MUTED)
-        self.status.pack(side="left")
+        self.status = ctk.CTkLabel(bar, text="No devices yet. Run a scan.", text_color=theme.MUTED, anchor="w")
         ctk.CTkButton(bar, text="Ping selected", command=self.ping_selected).pack(side="right")
         if app.is_admin:                               # the same Watch switch as on the Dashboard
             app.add_watch_switch(bar).pack_configure(padx=(0, 12))
+        self.status.pack(side="left", fill="x", expand=True)   # packed last, so the buttons keep their room
 
         self.table = HostTable(self, [("ip", "IP Address", 125), ("hostname", "Hostname", 190),
                                       ("mac", "MAC Address", 145), ("vendor", "Vendor", 190),

@@ -30,7 +30,7 @@ class PingView(ctk.CTkFrame):
         self.count_entry = ctk.CTkEntry(bar, width=50)
         self.count_entry.insert(0, "4")
         self.count_entry.pack(side="left")
-        self.run_button = ctk.CTkButton(bar, text="Run ping", command=self.run)
+        self.run_button = ctk.CTkButton(bar, text="Run ping", command=self.run, **theme.PRIMARY)
         self.run_button.pack(side="left", padx=12)
         self.colors = self.run_button.cget("fg_color"), self.run_button.cget("hover_color")   # restored after Stop
         self.continuous = ctk.CTkSwitch(bar, text="Continuous (-t)", command=self._mode_changed)
@@ -42,7 +42,7 @@ class PingView(ctk.CTkFrame):
 
         middle = ctk.CTkFrame(self, fg_color="transparent")
         middle.pack(fill="both", expand=True, padx=theme.PAD)
-        self.log = ctk.CTkTextbox(middle, width=430, font=("Consolas", 13), state="disabled")
+        self.log = ctk.CTkTextbox(middle, width=430, font=theme.MONO_FONT, state="disabled")
         self.log.pack(side="left", fill="y")
         self.chart = LatencyChart(middle)
         self.chart.pack(side="left", fill="both", expand=True, padx=(12, 0))
@@ -101,7 +101,7 @@ class PingView(ctk.CTkFrame):
         self.replies = 0
         # Replies arrive on ping's reading thread, so post() carries each one to the UI thread.
         self.handle = services.start_continuous_ping(ip, lambda session, rtt, line: post(self._on_reply, (session, rtt, line)))
-        self.run_button.configure(text="Stop", fg_color=theme.RED, hover_color="#b52b27")
+        self.run_button.configure(text="Stop", fg_color=theme.INK, hover_color=theme.INK_HOVER)
         self.ip_entry.configure(state="disabled")
         self.continuous.configure(state="disabled")
         self.app.buttons["Ping"].configure(text="Ping ●")

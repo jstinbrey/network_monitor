@@ -1,69 +1,71 @@
 # NetMonitor
 
-**Network Monitoring and Performance Analysis System**: a Windows desktop app that finds the devices on your local network, tests them with ping, tracks latency and packet loss, writes a report, and gives basic security advice.
+NetMonitor is a Windows desktop app for monitoring a local network. It discovers devices, measures latency and packet loss, tracks connection health, and exports reports. **Diagnose network** tests this PC, the router, internet access, and DNS, then explains where a problem starts and what to check next.
 
 Final project for CCS 234 (Communications and Networking), West Visayas State University, CICT.
 
-![Devices view after a network scan](Documentation/screenshots/devices_view.png)
+![Devices view with search, status filters, and actions for two selected devices using sample data](Documentation/screenshots/devices_view.png)
 
 ## Features
 
 | | Feature | What it does |
 |---|---|---|
-| 1 | **Network Discovery** | Detects the local IP, subnet mask, network range and gateway, then lists active devices with IP, hostname and MAC address. |
-| 2 | **Connectivity Testing** | Pings one or several devices and shows every reply time, min / average / max, and packet loss. |
-| 3 | **Network Statistics** | Per-device average latency, maximum latency, packet loss and jitter from all stored results, with a history chart. |
-| 4 | **Report Generator** | Writes a dated HTML or CSV report: devices, ping results, performance summary, recommendations. |
-| 5 | **Security Recommendations** | Flags weak connectivity, unreachable hosts, gateway problems and new devices, plus firewall and password reminders. |
+| 1 | **Network Discovery** | Finds devices on the local IPv4 network. Search by name, IP, MAC address or vendor, filter by status, and open a device’s details in the right-hand drawer. **Network details** shows the local IP, subnet mask, address range, and gateway. |
+| 2 | **Connectivity Testing** | Ping one device or a batch. **Continuous** mode charts reply times live and shows packet loss, jitter, and the longest outage. |
+| 3 | **Network Statistics** | See average and maximum latency, packet loss, and jitter across stored results. Select a device to see its history. |
+| 4 | **Report Generator** | Save a network snapshot as HTML, CSV, or PDF. Open saved reports from the **Reports** view. |
+| 5 | **Security Recommendations** | Review findings such as new devices, risky open ports, weak Wi-Fi security, and possible ARP anomalies. |
 
-Also included: a dashboard with a 0 to 100 network health score, and SQLite storage so history survives a restart.
+- **Dashboard** shows a network health score from 0 to 100 and runs the guided diagnosis.
+- **Map** shows device status and logical links to the gateway. Select a device to open its details.
+- **Traceroute** shows the routers between this PC and a target, with probe times and a verdict on where delay starts.
+- **Connection** shows Wi-Fi signal and nearby channels, live upload and download rates, and this PC’s data use for the day.
+- **Watch** periodically checks for devices joining or going offline and records uptime samples for known devices.
 
-![Ping view with reply times and a latency chart](Documentation/screenshots/ping_view.png)
+![Continuous ping with a live latency chart, session statistics, and reply output using sample data](Documentation/screenshots/ping_view.png)
 
 ## Download
 
-Get `NetMonitor-vX.Y.Z-windows.zip` from the [latest release](https://github.com/jstinbrey/network_monitor/releases/latest), unzip it, and run `NetMonitor\NetMonitor.exe`. It needs **Windows 10 or 11** and nothing else: Python is built in.
+Get `NetMonitor-vX.Y.Z-windows.zip` from the [latest release](https://github.com/jstinbrey/network_monitor/releases/latest), unzip it, and run `NetMonitor\NetMonitor.exe`. The release runs on **Windows 10 or 11** and includes Python.
 
-Windows SmartScreen may warn that the app is unrecognised, because it is not signed: choose *More info*, then *Run anyway*. The history and reports are kept in `%LOCALAPPDATA%\NetMonitor`, so a newer version finds them.
+The release is unsigned, so Windows SmartScreen may show a warning. The app keeps its database and reports in `%LOCALAPPDATA%\NetMonitor`, so a newer release can use the same files.
 
 ## Run from source
 
-Requires **Windows 10 or 11** and **Python 3.11+**. Administrator rights are not needed.
+Use **Windows 10 or 11** and **Python 3.13**, the version used to build the Windows release. You can run the app under a standard Windows account.
 
-**Easiest:** double-click `SourceCode\run.bat`. The first run creates a virtual environment and installs the packages, then opens the app.
+Double-click `SourceCode\run.bat` to create a virtual environment, install the packages, and open NetMonitor. Later launches reuse that environment.
 
-**Manual**, from PowerShell inside `SourceCode`:
+For manual setup, run these commands in PowerShell from the project root.
 
 ```powershell
+cd SourceCode
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python main.py
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe main.py
 ```
 
-If PowerShell blocks `Activate.ps1`, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+The source build saves its database in `SourceCode/data/netmonitor.db` and generated reports in `SourceCode/output/`.
 
 ## Using it
 
-```mermaid
-flowchart LR
-    A[Scan network] --> B[Ping devices]
-    B --> C[View statistics]
-    C --> D[Generate report]
-    C --> E[Read security<br>recommendations]
-```
+NetMonitor opens as a guest. For your first scan, click **Admin sign in** in the sidebar and create the first administrator account. Use a password of at least eight characters that differs from the username. This account is managed inside NetMonitor.
 
-1. **Devices**: click *Scan network* (about 10 to 15 seconds).
-2. Select devices and click *Ping selected*, or double-click one device.
-3. **Statistics**: click *Refresh all* to ping every known device.
-4. **Reports**: click *Generate report*.
-5. **Security**: read the recommendations, most severe first.
+1. In **Devices**, click **Scan network**. Use the search and status filters to narrow the list.
+2. Click a device row to open its details, or select several checkboxes and click **Ping** in the selection bar. The drawer shows recent tests, uptime when available, and actions for **Ping**, **Continuous ping**, and **Traceroute**.
+3. In **Dashboard**, click **Diagnose network** to check the connection. In **Statistics**, click **Re-test devices** to ping every listed device and update the stored results.
+4. Review findings in **Security**. In **Reports**, select a format, click **Generate report**, then click **Open** when the file is ready.
 
-An administrator can also check a device for open ports from its panel (*Check ports*). Only check devices on a network you own or administer.
+| Access | Available actions |
+|---|---|
+| Guest or signed-in User | View stored devices and history, run ping, traceroute, and diagnosis, and generate reports. |
+| Administrator | All of the above, plus scan the network, check ports, rename devices, mark devices as known, and turn on **Watch**. Use **Admin** to manage accounts, set bandwidth limits and the watch interval, or clear the current network’s history. |
+
+If **Connection** asks for Location access, search Windows Settings for **Location** and allow desktop apps to access it to show Wi-Fi details.
 
 ## How it works
 
-The app has three layers. The interface never runs network code itself; it calls the services layer in a background thread, so the window stays responsive during a scan.
+The Tkinter and CustomTkinter interface calls the services layer. Network operations such as scans and ping run on background threads so the window stays responsive, and SQLite stores the results locally. NetMonitor identifies each network by its IPv4 range and gateway MAC address when available.
 
 ![Application architecture](Documentation/diagrams/architecture.png)
 
@@ -73,20 +75,20 @@ The app has three layers. The interface never runs network code itself; it calls
 | `core/discovery.py` | 1 | ICMP ping sweep, ARP table, reverse DNS |
 | `core/pinger.py` | 2 | ICMP echo request and reply, round-trip time, packet loss |
 | `core/statistics.py` | 3 | Latency, jitter, packet loss |
-| `core/report_builder.py` | 4 | Report output (HTML, CSV) |
+| `core/report_builder.py` | 4 | Report output (HTML, CSV, PDF) |
 | `core/advisor.py` | 5 | Connectivity and security rules |
 
-A device that ignores ping but still answers ARP is shown as **No ICMP reply (host up)** instead of offline. This is common for Windows PCs, whose firewall drops ping by default.
+**Up, no ping reply** means the device was seen through ARP, but it did not answer ICMP echo requests. Its firewall may block ping.
 
 ## Tests
 
-From `SourceCode`, with the virtual environment active:
+Run the tests from `SourceCode` after setup.
 
 ```powershell
-pytest -v
+.\.venv\Scripts\python.exe -m pytest -v
 ```
 
-The tests cover address and gateway detection, ping and ARP parsing, statistics, storage, report generation and the recommendation rules. They do not need a network connection.
+The suite covers address and gateway detection, ping and ARP parsing, statistics, storage, report generation, recommendation rules, and keyboard focus. It uses fixtures for network outputs.
 
 ## Project layout
 
@@ -99,8 +101,9 @@ SourceCode/
   netmonitor/
     core/           networking logic (one module per feature)
     gui/            window, views and widgets
-    services.py     the only module the interface calls
+    services.py     operations exposed to the interface
     store.py        SQLite storage
+    resources/      theme, fonts, icons and IEEE MAC vendor registry (oui.csv)
     templates/      HTML report template
   tests/            pytest suite
 Documentation/      progress report, diagrams, screenshots
@@ -108,26 +111,27 @@ Documentation/      progress report, diagrams, screenshots
 
 ## Making a release
 
-Versions are `0.<phase>.<fix>` while the build plan runs, and `1.0.0` is the submitted build. The number lives in one place, `VERSION` in `SourceCode/netmonitor/config.py`, and shows in the title bar.
+Versions are `0.<phase>.<fix>` during development, with `1.0.0` reserved for the submitted build. `VERSION` in `SourceCode/netmonitor/config.py` sets the version shown in the title bar.
 
-1. Set `VERSION` (for example `"0.7.0"`), commit, and push.
-2. Tag that commit and push the tag:
+1. Set `VERSION`, commit, and push.
+2. Replace `X.Y.Z` with the configured version, then tag the commit and push the tag.
 
    ```powershell
-   git tag -a v0.7.0 -m "NetMonitor 0.7.0"
-   git push origin v0.7.0
+   git tag -a vX.Y.Z -m "NetMonitor X.Y.Z"
+   git push origin vX.Y.Z
    ```
 
-3. GitHub Actions (`.github/workflows/release.yml`) checks that the tag matches `VERSION`, runs the tests, builds `NetMonitor.exe` with PyInstaller, and publishes it on the Releases page (about 5 minutes; progress is on the Actions tab).
+3. GitHub Actions (`.github/workflows/release.yml`) checks that the tag matches `VERSION`, runs the tests, builds `NetMonitor.exe` with PyInstaller, and publishes the ZIP on the Releases page.
 
-A tag with a suffix, such as `v0.7.0-rc.1`, makes a pre-release: use it to try a build before the real one.
+A tag with a suffix such as `-rc.1` publishes a pre-release.
 
 ## Known limitations
 
-- **Windows only.** The app reads the output of the Windows `ping`, `arp` and `route` commands.
+- **Windows only.** The app uses Windows networking commands. Wi-Fi details depend on English `netsh` output.
 - **IPv4 only**, and a scan covers at most 254 addresses (a /24).
 - **Hostnames are not always available.** Many phones show as "Unknown".
-- **Some networks hide devices from each other** (school or public Wi-Fi), so a scan there may find only the gateway.
-- **Two networks with the same address range share one device list.** To start clean, close the app and delete `SourceCode\data\netmonitor.db`.
+- **Device discovery is limited by the network.** Wi-Fi client isolation can prevent discovery of other devices.
+- **Bandwidth measures this PC’s traffic while NetMonitor is running.** The map shows logical links between devices and the gateway.
+- **Accounts gate actions in the app.** Windows file permissions control access to the local database and exported reports.
 
-Scan only networks that you own or are allowed to test.
+Scan, check ports, and use Watch only on networks you own or are authorized to administer.

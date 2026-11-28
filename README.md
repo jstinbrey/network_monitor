@@ -4,7 +4,7 @@ NetMonitor is a Windows desktop app for monitoring a local network. It discovers
 
 Final project for CCS 234 (Communications and Networking), West Visayas State University, CICT.
 
-![Devices view with search, status filters, and actions for two selected devices using sample data](Documentation/screenshots/devices_view.png)
+![Devices view with the Printer details drawer open, showing recent latency, uptime, and ping and traceroute actions](Documentation/screenshots/devices_view.png)
 
 ## Features
 
@@ -22,7 +22,9 @@ Final project for CCS 234 (Communications and Networking), West Visayas State Un
 - **Connection** shows Wi-Fi signal and nearby channels, live upload and download rates, and this PC’s data use for the day.
 - **Watch** periodically checks for devices joining or going offline and records uptime samples for known devices.
 
-![Continuous ping with a live latency chart, session statistics, and reply output using sample data](Documentation/screenshots/ping_view.png)
+![Continuous ping to a sample gateway with live latency, an amber spike, a lost reply, and session statistics](Documentation/screenshots/ping_view.png)
+
+The screenshots use simulated network data.
 
 ## Download
 
@@ -67,7 +69,7 @@ If **Connection** asks for Location access, search Windows Settings for **Locati
 
 The Tkinter and CustomTkinter interface calls the services layer. Network operations such as scans and ping run on background threads so the window stays responsive, and SQLite stores the results locally. NetMonitor identifies each network by its IPv4 range and gateway MAC address when available.
 
-![Application architecture](Documentation/diagrams/architecture.png)
+![NetMonitor architecture. The Tkinter interface calls application services, which coordinate network tests, SQLite storage, and report export.](Documentation/diagrams/architecture.png)
 
 | Module | Feature | Networking concepts |
 |---|---|---|

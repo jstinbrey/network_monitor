@@ -227,9 +227,11 @@ class DevicePanel(ctk.CTkFrame):
 
     def _set_busy(self, busy):
         self.busy = busy
+        ipv6 = bool(self.ip and ":" in self.ip)
         for button in (self.ping_button, self.port_button, self.rename_button, self.known_button):
             if button:
-                button.configure(state="disabled" if busy or button is self.known_button and self.known else "normal")
+                disabled = busy or ipv6 and button is not self.ping_button or button is self.known_button and self.known
+                button.configure(state="disabled" if disabled else "normal")
 
     def _load(self, clear_status=False):
         def loaded(detail):
@@ -252,11 +254,12 @@ class DevicePanel(ctk.CTkFrame):
         self.name.configure(text=device.alias or device.hostname)
         self.icon.configure(image=theme.icon(theme.device_icon(device), size=20))
         self.address.configure(text=f"{device.ip} · {device.mac or 'MAC unknown'}")
-        first_seen = device.first_seen[:10]
-        self.seen.configure(text=" · ".join(filter(None, (device.vendor, f"first seen {first_seen}" if first_seen else ""))))
+        timestamp = max(device.last_seen, stats.last_tested)
+        label = "Last tested" if timestamp == stats.last_tested else "Last seen"
+        seen = f"{label} {timestamp[:16].replace('T', ' ')}" if timestamp else ""
+        self.seen.configure(text=" · ".join(filter(None, (device.vendor, seen))))
         background, foreground = STATUS_TONES[stats.status]
-        status = "Up, no ping reply" if stats.status == models.NO_ICMP else models.STATUS_LABELS[stats.status]
-        self.status_chip.configure(text=status, fg_color=background, text_color=foreground)
+        self.status_chip.configure(text=models.STATUS_LABELS[stats.status], fg_color=background, text_color=foreground)
         self.verdict.configure(text=verdict(stats).partition("  ·  ")[2] or "No latency measurements yet")
         loss = "No data" if stats.loss_pct is None else f"{stats.loss_pct:g}%"
         for title, text in zip(TILES, (ms(stats.avg_ms), ms(stats.max_ms), loss, ms(stats.jitter_ms))):
@@ -295,8 +298,11 @@ class DevicePanel(ctk.CTkFrame):
         for row in self.port_rows.winfo_children():
             row.destroy()
         if not ports:
-            summary, color = ports_line(ports)
-            caption = summary.partition(": ")[2].capitalize()
+            if self.ip and ":" in self.ip:
+                caption, color = "Port checks use IPv4 addresses.", theme.MUTED
+            else:
+                summary, color = ports_line(ports)
+                caption = summary.partition(": ")[2].capitalize()
             theme.WrappedLabel(self.port_rows, text=caption, text_color=color).pack(fill="x")
         for port in ports or ():
             row = ctk.CTkFrame(self.port_rows, fg_color=theme.SUBTLE, corner_radius=12)

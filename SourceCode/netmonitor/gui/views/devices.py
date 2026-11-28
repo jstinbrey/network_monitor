@@ -12,20 +12,12 @@ from netmonitor.gui.worker import post, run_async
 
 FILTERS = ("All", "Online", "Issues", "New")
 ISSUES = {models.DEGRADED, models.NO_ICMP, models.OFFLINE}
-STATUS = models.STATUS_LABELS | {models.NO_ICMP: "Up, no ping reply"}
-
-
-def device_status(device, stats):
-    """Use ping history when it exists and discovery evidence for a new device."""
-    if stats and stats.status != models.NO_DATA:
-        return stats.status
-    return models.ONLINE if device.replied_icmp else models.NO_ICMP
 
 
 def matches(device, status, filter_name, query):
     """Match the selected filter and each entered search term."""
     group = (filter_name == "All" or
-             filter_name == "Online" and status == models.ONLINE or
+             filter_name == "Online" and status in models.REACHABLE_STATUSES or
              filter_name == "Issues" and status in ISSUES or
              filter_name == "New" and not device.known)
     text = " ".join(filter(None, (device.alias, device.hostname, device.ip, device.mac, device.vendor))).casefold()
@@ -131,10 +123,9 @@ class DevicesView(ctk.CTkFrame):
         run_async(services.scan, lambda done, total: post(self._show_progress, (done, total)),
                   on_done=self._scanned, on_error=self._show_error)
 
-    def _scanned(self, devices):
+    def _scanned(self, _devices):
         self.last_scan = (datetime.now().strftime("%H:%M"), round(monotonic() - self.scan_started))
         self._scan_ready()
-        self._show_devices(devices, {})
         self._load()
 
     def _scan_ready(self):
@@ -194,7 +185,7 @@ class DevicesView(ctk.CTkFrame):
     def _render(self):
         query = self.search.get()
         entries = [(device, self.stats.get(device.ip)) for device in self.devices.values()]
-        rows = [(device, stats, device_status(device, stats)) for device, stats in entries]
+        rows = [(device, stats, stats.status if stats else models.NO_DATA) for device, stats in entries]
         counts = {name: sum(matches(device, status, name, "") for device, _, status in rows) for name in FILTERS}
         for name, button in self.filters.items():
             active = self.filter_name == name
@@ -214,7 +205,7 @@ class DevicesView(ctk.CTkFrame):
                 label += "\n" + device.vendor
             latency = f"{stats.avg_ms:g} ms" if stats and stats.avg_ms is not None else "—"
             visible.append({"ip": device.ip, "name": label, "mac": device.mac or "—", "latency": latency,
-                            "status": STATUS[status], "icon": theme.device_icon(device), "options": "…",
+                            "status": models.STATUS_LABELS[status], "icon": theme.device_icon(device), "options": "…",
                             "tag": theme.STATUS_TAGS[status]})
         self.table.set_rows(visible)
         if self.scan_started is not None:

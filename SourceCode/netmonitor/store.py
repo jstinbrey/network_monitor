@@ -31,7 +31,33 @@ CREATE TABLE IF NOT EXISTS presence (network, mac, at, up);
 CREATE TABLE IF NOT EXISTS usage (day PRIMARY KEY, bytes_recv DEFAULT 0, bytes_sent DEFAULT 0);
 CREATE TABLE IF NOT EXISTS settings (key PRIMARY KEY, value);
 """
-NETWORK_TABLES = ("devices", "known_macs", "pings", "port_checks", "events", "presence")   # keyed by network
+NETWORK_TABLES = ("devices", "device_names", "known_macs", "pings", "port_checks", "events", "presence")
+
+
+def device_owner(ip: str, mac: str | None) -> str:
+    """Identify a device by MAC when known, otherwise by its address on this network."""
+    return f"mac:{mac.lower().replace(':', '-')}" if mac else f"ip:{ip}"
+
+
+def _upgrade_device_history(db):
+    db.execute("BEGIN IMMEDIATE")
+    if db.execute("PRAGMA user_version").fetchone()[0] != 0:
+        return
+    db.execute("CREATE TABLE device_names (network, owner, alias, first_seen, PRIMARY KEY (network, owner))")
+    db.execute("INSERT OR IGNORE INTO device_names SELECT network, 'mac:' || LOWER(REPLACE(mac, ':', '-')), "
+               "alias, first_seen FROM devices WHERE mac IS NOT NULL AND mac != '' ORDER BY last_seen DESC")
+    db.execute("ALTER TABLE pings ADD COLUMN owner TEXT")
+    db.execute("UPDATE pings SET owner = COALESCE((SELECT 'mac:' || LOWER(REPLACE(mac, ':', '-')) FROM devices "
+               "WHERE devices.network = pings.network AND devices.ip = pings.ip AND mac != ''), 'ip:' || pings.ip)")
+    db.execute("CREATE INDEX pings_by_owner ON pings (network, owner)")
+    db.execute("ALTER TABLE port_checks RENAME TO legacy_port_checks")
+    db.execute("CREATE TABLE port_checks (network, owner, ip, checked_at, open_ports, PRIMARY KEY (network, owner))")
+    db.execute("INSERT OR REPLACE INTO port_checks SELECT p.network, "
+               "COALESCE('mac:' || LOWER(REPLACE(NULLIF(d.mac, ''), ':', '-')), 'ip:' || p.ip), "
+               "p.ip, p.checked_at, p.open_ports FROM legacy_port_checks p LEFT JOIN devices d "
+               "ON d.network = p.network AND d.ip = p.ip ORDER BY p.checked_at")
+    db.execute("DROP TABLE legacy_port_checks")
+    db.execute("PRAGMA user_version = 1")
 
 
 def _connect(path=None):
@@ -39,7 +65,14 @@ def _connect(path=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(path)
     db.row_factory = sqlite3.Row
-    db.executescript(SCHEMA)
+    try:
+        db.executescript(SCHEMA)
+        if db.execute("PRAGMA user_version").fetchone()[0] == 0:
+            with db:
+                _upgrade_device_history(db)
+    except Exception:
+        db.close()
+        raise
     return db
 
 
@@ -57,17 +90,40 @@ def save_scan(devices: list[Device], network: str, path=None):
     a device that left the network can later be reported as unreachable.
     """
     with closing(_connect(path)) as db, db:   # "with db" commits, or rolls back on an error
+        db.execute("BEGIN IMMEDIATE")
         known = {row["mac"] for row in db.execute("SELECT mac FROM known_macs WHERE network = ?", (network,))}
+        current = {row["ip"]: row for row in db.execute("SELECT * FROM devices WHERE network = ?", (network,))}
+        seen_ips = {device.ip for device in devices}
+        previous_addresses = {}
+        for row in current.values():
+            previous_addresses.setdefault(device_owner(row["ip"], row["mac"]), []).append(row["ip"])
         for device in devices:
+            previous = current.get(device.ip)
+            if previous and previous["last_seen"] > device.last_seen:
+                continue
             if not known and device.mac:
                 db.execute("INSERT OR IGNORE INTO known_macs VALUES (?, ?)", (network, device.mac))
             device.known = not known or device.mac is None or device.mac in known
+            owner = device_owner(device.ip, device.mac)
+            if device.mac:
+                db.execute("INSERT OR IGNORE INTO device_names VALUES (?, ?, ?, ?)",
+                           (network, owner, device.alias, device.first_seen))
+                meta = db.execute("SELECT alias, first_seen FROM device_names WHERE network = ? AND owner = ?",
+                                  (network, owner)).fetchone()
+                device.alias, device.first_seen = meta["alias"], meta["first_seen"]
+                for ip in previous_addresses.get(owner, ()):
+                    if ip not in seen_ips:
+                        db.execute("DELETE FROM devices WHERE network = ? AND ip = ? AND last_seen <= ?",
+                                   (network, ip, device.last_seen))
+            elif previous and not previous["mac"]:
+                device.alias, device.first_seen = previous["alias"], previous["first_seen"]
             db.execute(
                 f"INSERT INTO devices ({DEVICE_COLUMNS}) VALUES ({_placeholders(DEVICE_COLUMNS)}) "
                 "ON CONFLICT (network, ip) DO UPDATE SET mac = excluded.mac, hostname = excluded.hostname, "
+                "alias = excluded.alias, first_seen = excluded.first_seen, "
                 "replied_icmp = excluded.replied_icmp, is_self = excluded.is_self, "
                 "is_gateway = excluded.is_gateway, known = excluded.known, last_seen = excluded.last_seen",
-                asdict(device) | {"network": network})   # first_seen is not updated: it keeps its first value
+                asdict(device) | {"network": network})
 
 
 def get_devices(network: str, path=None) -> list[Device]:
@@ -93,40 +149,73 @@ def unmark_known(mac: str, network: str, path=None):
         db.execute("UPDATE devices SET known = 0 WHERE network = ? AND mac = ?", (network, mac))
 
 
-def set_alias(ip: str, alias: str, network: str, path=None):
-    """Name a device. A rescan never overwrites the alias column, so the name stays."""
-    # shortcut: the name belongs to the IP, so a device that DHCP moves to a new IP loses it.
+def set_alias(ip: str, alias: str, network: str, path=None, *, owner=None):
+    """Name a device and keep the name when its MAC moves to another IP."""
     with closing(_connect(path)) as db, db:
-        db.execute("UPDATE devices SET alias = ? WHERE network = ? AND ip = ?", (alias, network, ip))
+        db.execute("BEGIN IMMEDIATE")
+        current = _current_owner(db, ip, network)
+        if owner and owner != current:
+            raise RuntimeError("The device at this address changed. Scan the network before renaming it.")
+        owner = current
+        if owner.startswith("mac:"):
+            db.execute("UPDATE device_names SET alias = ? WHERE network = ? AND owner = ?", (alias, network, owner))
+            db.execute("UPDATE devices SET alias = ? WHERE network = ? AND LOWER(REPLACE(mac, ':', '-')) = ?",
+                       (alias, network, owner[4:]))
+        else:
+            db.execute("UPDATE devices SET alias = ? WHERE network = ? AND ip = ?", (alias, network, ip))
 
 
-def save_ping(result: PingResult, network: str, path=None):
+def _current_owner(db, ip, network):
+    row = db.execute("SELECT mac FROM devices WHERE network = ? AND ip = ?", (network, ip)).fetchone()
+    return device_owner(ip, row["mac"] if row else None)
+
+
+def save_ping(result: PingResult, network: str, path=None, *, owner=None):
     """Append one ping result to the history of a network."""
     with closing(_connect(path)) as db, db:
-        db.execute(f"INSERT INTO pings ({PING_COLUMNS}) VALUES ({_placeholders(PING_COLUMNS)})",
-                   asdict(result) | {"network": network, "rtts_ms": json.dumps(result.rtts_ms)})
+        db.execute("BEGIN IMMEDIATE")
+        owner = owner or _current_owner(db, result.ip, network)
+        db.execute(f"INSERT INTO pings ({PING_COLUMNS}, owner) VALUES ({_placeholders(PING_COLUMNS)}, :owner)",
+                   asdict(result) | {"network": network, "rtts_ms": json.dumps(result.rtts_ms), "owner": owner})
 
 
-def get_pings(ip: str, network: str, path=None) -> list[PingResult]:
-    """All stored ping results for a host on a network, oldest first."""
+def get_pings(ip: str, network: str, path=None, *, owner=None) -> list[PingResult]:
+    """Ping history for the device and the address family being tested."""
     with closing(_connect(path)) as db:
-        rows = db.execute(f"SELECT {PING_FIELDS} FROM pings WHERE network = ? AND ip = ? ORDER BY id",
-                          (network, ip)).fetchall()
+        owner = owner or _current_owner(db, ip, network)
+        rows = db.execute(f"SELECT {PING_FIELDS} FROM pings WHERE network = ? AND owner = ? "
+                          "AND (instr(ip, ':') > 0) = ? ORDER BY id", (network, owner, ":" in ip)).fetchall()
     return [PingResult(**dict(row) | {"rtts_ms": json.loads(row["rtts_ms"])}) for row in rows]
 
 
-def save_port_check(ip: str, open_ports: list[dict], network: str, path=None):
+def save_port_check(ip: str, open_ports: list[dict], network: str, path=None, *, owner=None):
     """Remember the latest port check of a host; it replaces the one before."""
     with closing(_connect(path)) as db, db:
-        db.execute("INSERT OR REPLACE INTO port_checks VALUES (?, ?, ?, ?)",
-                   (network, ip, datetime.now().isoformat(timespec="seconds"), json.dumps(open_ports)))
+        db.execute("BEGIN IMMEDIATE")
+        owner = owner or _current_owner(db, ip, network)
+        db.execute("INSERT OR REPLACE INTO port_checks VALUES (?, ?, ?, ?, ?)",
+                   (network, owner, ip, datetime.now().isoformat(timespec="seconds"), json.dumps(open_ports)))
+
+
+def get_port_check(network: str, owner: str, path=None) -> list[dict] | None:
+    with closing(_connect(path)) as db:
+        row = db.execute("SELECT open_ports FROM port_checks WHERE network = ? AND owner = ?",
+                         (network, owner)).fetchone()
+    return json.loads(row["open_ports"]) if row else None
 
 
 def get_port_checks(network: str, path=None) -> dict[str, list[dict]]:
     """{ip: open ports} for every host checked on a network."""
     with closing(_connect(path)) as db:
-        rows = db.execute("SELECT ip, open_ports FROM port_checks WHERE network = ?", (network,)).fetchall()
-    return {row["ip"]: json.loads(row["open_ports"]) for row in rows}
+        db.execute("BEGIN")
+        rows = db.execute("SELECT owner, ip, open_ports FROM port_checks WHERE network = ?", (network,)).fetchall()
+        devices = db.execute("SELECT ip, mac FROM devices WHERE network = ?", (network,)).fetchall()
+    owners = {row["ip"]: device_owner(row["ip"], row["mac"]) for row in devices}
+    checks = {row["owner"]: json.loads(row["open_ports"]) for row in rows}
+    results = {row["ip"]: checks[row["owner"]] for row in rows
+               if row["owner"] == device_owner(row["ip"], None) and row["ip"] not in owners}
+    results.update({ip: checks[owner] for ip, owner in owners.items() if owner in checks})
+    return results
 
 
 def add_event(network: str, event: Event, path=None) -> int:

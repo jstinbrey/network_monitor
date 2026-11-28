@@ -13,7 +13,7 @@ from netmonitor.core import pinger
 
 def check_ports(ip: str, ports: dict[int, str] = config.COMMON_PORTS) -> list[dict]:
     """[{"port", "service", "risk"}] for every port in ports that accepts a connection, in port order."""
-    ip = pinger.validate_ip(ip)                     # never pass unchecked input to connect()
+    ip = pinger.validate_ip(ip, 4)
 
     def probe(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

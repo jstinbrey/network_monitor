@@ -5,6 +5,7 @@ import re
 import socket
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
+from dataclasses import replace
 from datetime import datetime
 
 from netmonitor import config
@@ -15,6 +16,8 @@ from netmonitor.models import Device, NetworkInfo
 _INTERFACE = re.compile(r"^\S.*?(\d+\.\d+\.\d+\.\d+)\s+---\s+0x", re.M)
 # "  192.168.1.1    a4-2b-b0-11-22-33    dynamic"
 _ROW = re.compile(r"^\s+(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F]{2}(?:-[0-9a-fA-F]{2}){5})\s", re.M)
+_IPV6_INTERFACE = re.compile(r"^\s*\S+\s+(\d+)\s*:", re.M)
+_MAC = re.compile(r"[0-9a-f]{2}(?:-[0-9a-f]{2}){5}", re.I)
 
 def parse_arp(output: str, local_ip: str, network) -> dict[str, str]:
     """{ip: mac} of real neighbours on the adapter that owns local_ip.
@@ -40,6 +43,60 @@ def read_arp(local_ip: str, network) -> dict[str, str]:
     output = subprocess.run(["arp", "-a"], capture_output=True, text=True,
                             timeout=10, creationflags=pinger.NO_WINDOW).stdout
     return parse_arp(output, local_ip, network)
+
+
+def parse_ipv6_neighbours(output: str) -> dict[str, str]:
+    """Read the selected Windows adapter's cache and preserve link-local scopes."""
+    interface = _IPV6_INTERFACE.search(output)
+    found = {}
+    for line in output.splitlines():
+        columns = line.split()
+        if len(columns) < 3 or columns[2] not in {"Reachable", "Stale", "Delay", "Probe", "Permanent"}:
+            continue
+        ip, mac = columns[0], columns[1].lower()
+        if not _MAC.fullmatch(mac) or mac == "00-00-00-00-00-00" or int(mac[:2], 16) & 1:
+            continue
+        try:
+            address = ipaddress.IPv6Address(ip)
+        except ValueError:
+            continue
+        if address.is_multicast or address.is_unspecified or address.is_loopback:
+            continue
+        if address.is_link_local and not address.scope_id:
+            if not interface:
+                continue
+            ip = f"{address}%{interface[1]}"
+        else:
+            ip = str(address)
+        found[ip] = mac
+    return found
+
+
+def read_ipv6_neighbours(local_ip: str) -> dict[str, str]:
+    """Read IPv6 neighbors on the active LAN adapter. This does not send probes."""
+    adapter = netinfo.get_adapter(local_ip)
+    if not adapter:
+        return {}
+    try:
+        result = subprocess.run(["netsh", "interface", "ipv6", "show", "neighbors", f"interface={adapter}"],
+                                capture_output=True, text=True, timeout=5, creationflags=netinfo.NO_WINDOW)
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    return parse_ipv6_neighbours(result.stdout) if result.returncode == 0 else {}
+
+
+def merge_ipv6(devices: list[Device], neighbours: dict[str, str]) -> list[Device]:
+    """Attach IPv6 addresses by MAC without counting the same device again."""
+    by_mac = {}
+    for ip, mac in neighbours.items():
+        by_mac.setdefault(mac, []).append(ip)
+    merged = []
+    for device in devices:
+        mac = (device.mac or "").replace(":", "-").lower()
+        addresses = by_mac.pop(mac, ())
+        merged.append(replace(device, ipv6_addresses=tuple(addresses)) if addresses else device)
+    merged.extend(Device(ips[0], mac, "IPv6 neighbor", ipv6_addresses=tuple(ips)) for mac, ips in by_mac.items())
+    return merged
 
 
 def sweep(targets: list[str], on_progress=None) -> set[str]:

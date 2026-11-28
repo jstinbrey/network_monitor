@@ -11,7 +11,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from netmonitor import config
-from netmonitor.models import STATUS_LABELS
+from netmonitor.models import NO_DATA, STATUS_LABELS
 
 HEADER_BLUE = colors.HexColor("#1f538d")
 VERDICT_COLORS = {"good": "#2f8a5f", "warn": "#b7791f", "bad": "#c0392b"}   # as in the HTML report
@@ -42,6 +42,9 @@ def build(data: dict, fmt: str, folder: Path = None) -> Path:
     """
     now = datetime.now()
     data = OPTIONAL | data | {"generated_at": now.strftime("%Y-%m-%d %H:%M:%S"), "labels": STATUS_LABELS}
+    data["device_statuses"] = {s.ip: STATUS_LABELS[s.status] for s in data["stats"]}
+    score = data["summary"].health_score
+    data["health_text"] = f"{score} / 100" if score is not None else STATUS_LABELS[NO_DATA]
     folder = folder or config.OUTPUT_DIR
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"report_{now:%Y%m%d_%H%M%S_%f}.{fmt}"   # microseconds: two reports never share a name
@@ -111,7 +114,7 @@ def _pdf(data: dict, path: Path):
     story.append(Paragraph(f"Devices Detected ({len(devices)})", heading))
     story.append(table(["IP Address", "Hostname", "MAC Address", "Vendor", "Status", "Open Ports", "Last Seen"],
                        [[d.ip, d.hostname, d.mac or "-", d.vendor,
-                         "Online" if d.replied_icmp else "No ICMP reply (host up)",
+                         data["device_statuses"].get(d.ip, STATUS_LABELS[NO_DATA]),
                          ports_text(data["ports"].get(d.ip)), d.last_seen.replace("T", " ")] for d in devices],
                        [0.11, 0.18, 0.17, 0.15, 0.12, 0.14, 0.13])
                  if devices else text("No devices found. Run a scan first."))
@@ -127,7 +130,7 @@ def _pdf(data: dict, path: Path):
     story.append(Paragraph("Network Performance Summary", heading))
     story.append(table(["Devices", "Reachable", "Unreachable", "Average latency", "Health score"],
                        [[summary.devices, summary.reachable, summary.unreachable, _ms(summary.network_avg_ms),
-                         f"{summary.health_score} / 100"]], [0.2] * 5))
+                         data["health_text"]]], [0.2] * 5))
     story += [Spacer(1, 4), text(f"Fastest host: {summary.best_host or 'No data'}  |  "
                                  f"Slowest host: {summary.worst_host or 'No data'}")]
     if stats:

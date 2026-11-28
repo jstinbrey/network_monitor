@@ -42,7 +42,8 @@ def parse_interfaces(output: str) -> WifiInfo | None:
     return WifiInfo(ssid=fields.get("SSID", ""), band=fields.get("Band", "?"), channel=int(fields.get("Channel", 0)),
                     radio=fields.get("Radio type", ""), auth=fields.get("Authentication", ""),
                     cipher=fields.get("Cipher", ""), rx_mbps=float(fields.get("Receive rate (Mbps)", 0)),
-                    tx_mbps=float(fields.get("Transmit rate (Mbps)", 0)), signal_pct=signal, rssi_dbm=rssi)
+                    tx_mbps=float(fields.get("Transmit rate (Mbps)", 0)), signal_pct=signal, rssi_dbm=rssi,
+                    bssid=fields.get("AP BSSID", fields.get("BSSID", "")).lower())
 
 
 def parse_networks(output: str) -> list[tuple[str, int]]:

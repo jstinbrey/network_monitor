@@ -16,9 +16,23 @@ _LOST = ("Request timed out", "Reply from", "General failure", "PING: transmit f
          "Destination host unreachable")
 
 
-def validate_ip(text: str) -> str:
-    """Return a clean IPv4 string, or raise ValueError for anything else."""
-    return str(ipaddress.IPv4Address(text.strip()))
+def validate_ip(text: str, version: int | None = None) -> str:
+    """Return a canonical IPv4 or IPv6 target for the selected family."""
+    try:
+        address = ipaddress.ip_address(text.strip())
+    except ValueError:
+        raise ValueError(f"Enter a valid {'IPv' + str(version) if version else 'IP'} address.") from None
+    if version is not None and address.version != version:
+        raise ValueError(f"Enter an IPv{version} address or switch the address family.")
+    if isinstance(address, ipaddress.IPv6Address):
+        scope = address.scope_id
+        if scope and not (scope.isascii() and scope.isdecimal() and 0 < int(scope) <= 0xffffffff):
+            raise ValueError("Use a numeric Windows interface index after % in the IPv6 address.")
+        if address.is_link_local and not scope:
+            raise ValueError("Add the Windows interface index to the link-local IPv6 address, such as fe80::1%15.")
+        if scope:
+            return f"{str(address).split('%', 1)[0]}%{int(scope)}"
+    return str(address)
 
 
 def parse_rtts(output: str) -> list[float]:
@@ -54,7 +68,8 @@ _children = set()                         # every ping -n still running, so stop
 
 def _run(ip: str, count: int, timeout_ms: int) -> str:
     """Run ping and return its text output ("" if it hangs). Raises RuntimeError if stop_children ended it."""
-    process = subprocess.Popen(["ping", "-n", str(count), "-w", str(timeout_ms), ip],   # a list, never shell=True
+    family = "-6" if ":" in ip else "-4"
+    process = subprocess.Popen(["ping", family, "-n", str(count), "-w", str(timeout_ms), ip],
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                                creationflags=NO_WINDOW)
     _children.add(process)
@@ -79,7 +94,7 @@ def stop_children():
 
 
 def ping(ip: str, count=config.PING_COUNT, timeout_ms=config.PING_TIMEOUT_MS) -> PingResult:
-    """Ping one host. Raises ValueError if ip is not a valid IPv4 address."""
+    """Ping one validated IPv4 or IPv6 address."""
     ip = validate_ip(ip)
     output = _run(ip, count, timeout_ms)
     lines = [l.strip() for l in output.splitlines() if l.strip().startswith(("Reply", "Request"))]
@@ -114,7 +129,8 @@ class ContinuousPing:
     def __init__(self, ip: str, on_reply, timeout_ms=config.PING_TIMEOUT_MS):
         self.ip = validate_ip(ip)
         self.on_reply = on_reply
-        self.process = subprocess.Popen(["ping", "-t", "-w", str(timeout_ms), self.ip],
+        family = "-6" if ":" in self.ip else "-4"
+        self.process = subprocess.Popen(["ping", family, "-t", "-w", str(timeout_ms), self.ip],
                                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                         text=True, creationflags=NO_WINDOW)
         threading.Thread(target=self._read, daemon=True).start()

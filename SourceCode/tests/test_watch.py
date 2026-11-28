@@ -1,5 +1,6 @@
 """Tests for Step 7.6: watch mode turns successive scans into events, and presence rows into uptime."""
 import dataclasses
+from types import SimpleNamespace
 
 import pytest
 
@@ -8,6 +9,8 @@ from netmonitor.core import pinger, watch
 from netmonitor.models import Device
 
 NETWORK = "192.168.1.0/24 via rr"
+INFO = models.NetworkInfo("pc", "192.168.1.20", "255.255.255.0", "192.168.1.0/24",
+                          "192.168.1.1", "192.168.1.254", "192.168.1.1", 254)
 ROUTER = Device(ip="192.168.1.1", mac="00-1a-2b-00-00-01", hostname="Gateway", is_gateway=True)
 PHONE = Device(ip="192.168.1.5", mac="00-1a-2b-00-00-05", hostname="phone")
 LAPTOP = Device(ip="192.168.1.30", mac="00-1a-2b-00-00-30", hostname="laptop")
@@ -34,22 +37,18 @@ def tick(tmp_path, monkeypatch):
     """tick(*devices, router_ms=2.0): one watch check on a fake network that finds those devices."""
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
     monkeypatch.setattr(services, "_user", models.User("admin", models.ADMIN))
-    monkeypatch.setattr(services, "_network_id", lambda info, macs=None: NETWORK)
-    monkeypatch.setattr(services.netinfo, "get_network_info", lambda: None)
     monkeypatch.setattr(services, "_watch", watch.WatchState())
+    monkeypatch.setattr(services, "_watch_network", None)
+    monkeypatch.setattr(services, "_watch_attachment", None)
 
-    def run(*devices, router_ms=2.0):
-        def scan():
-            found = [dataclasses.replace(d) for d in devices]
-            store.save_scan(found, NETWORK)
-            return found
-
-        def ping(ip, count):
-            result = pinger.build_result(ip, count, [router_ms] * count)
-            store.save_ping(result, NETWORK)
-            return result
-        monkeypatch.setattr(services, "scan", scan)
-        monkeypatch.setattr(services, "run_ping", ping)
+    def run(*devices, router_ms=2.0, network=NETWORK, access_point=None):
+        snapshot = services._Network(INFO, network, {d.ip: d.mac for d in devices})
+        monkeypatch.setattr(services, "_network_snapshot", lambda: snapshot)
+        monkeypatch.setattr(services, "_network_id", lambda info, macs=None: network)
+        monkeypatch.setattr(services.netinfo, "get_network_info", lambda: INFO)
+        monkeypatch.setattr(services.wifi, "read", lambda: SimpleNamespace(ssid="Wi-Fi", bssid=access_point))
+        monkeypatch.setattr(services.discovery, "discover", lambda *_: [dataclasses.replace(d) for d in devices])
+        monkeypatch.setattr(services.pinger, "ping", lambda ip, count: pinger.build_result(ip, count, [router_ms] * count))
         return [(e.kind, e.severity, e.ip, e.detail) for e in services.watch_tick()]
     return run
 
@@ -73,3 +72,19 @@ def test_only_an_admin_can_watch(monkeypatch):
     monkeypatch.setattr(services, "_user", models.User("bob", models.USER))
     with pytest.raises(PermissionError):
         services.start_watch()
+
+
+def test_switching_networks_restarts_watch_without_false_alerts(tick):
+    assert tick(ROUTER, PHONE, access_point="first access point") == []
+    new_router = dataclasses.replace(ROUTER, mac="00-1a-2b-00-00-02")
+    other = "192.168.1.0/24 via new router"
+    assert tick(new_router, LAPTOP, network=other, access_point="second access point") == []
+    assert tick(new_router, LAPTOP, network=other, access_point="second access point") == []
+    assert services.events() == []
+
+
+def test_watch_retains_gateway_change_alert_on_same_access_point(tick):
+    assert tick(ROUTER, PHONE, access_point="same access point") == []
+    other_mac = dataclasses.replace(ROUTER, mac="00-1a-2b-00-00-02")
+    events = tick(other_mac, PHONE, network="192.168.1.0/24 via new MAC", access_point="same access point")
+    assert [event[0] for event in events] == ["gateway-mac-changed"]

@@ -22,14 +22,15 @@ def test_action_button_only_participates_in_tab_order_when_available(root):
     button = ActionButton(view, text="Open report")
     button.pack()
     root.update()
-    assert root.tk.getboolean(root.tk.call("::tk::FocusOK", str(button)))
+    assert root.tk_focusNext() is button
 
     button.configure(state="disabled")
-    assert not root.tk.getboolean(root.tk.call("::tk::FocusOK", str(button)))
+    assert root.tk_focusNext() is not button
 
     button.configure(state="normal")
     view.pack_forget()
-    assert not root.tk.getboolean(root.tk.call("::tk::FocusOK", str(button)))
+    root.update_idletasks()
+    assert root.tk_focusNext() is not button
     view.destroy()
 
 

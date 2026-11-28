@@ -123,6 +123,30 @@ def get_gateway(local_ip: str) -> str | None:
     return parse_default_gateway(output, local_ip)
 
 
+_DEFAULT_IPV6_ROUTE = re.compile(r"^\s*\S+\s+\S+\s+(\d+)\s+::/0\s+(\d+)\s+(\S+)", re.M)
+
+
+def parse_ipv6_gateway(output: str) -> str | None:
+    routes = []
+    for metric, interface, gateway in _DEFAULT_IPV6_ROUTE.findall(output):
+        try:
+            address = ipaddress.IPv6Address(gateway)
+        except ValueError:
+            continue
+        target = f"{address}%{interface}" if address.is_link_local and not address.scope_id else str(address)
+        routes.append((int(metric), target))
+    return min(routes)[1] if routes else None
+
+
+def get_ipv6_gateway() -> str | None:
+    try:
+        result = subprocess.run(["netsh", "interface", "ipv6", "show", "route"], capture_output=True,
+                                text=True, timeout=5, creationflags=NO_WINDOW)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return parse_ipv6_gateway(result.stdout) if result.returncode == 0 else None
+
+
 def get_network_info() -> NetworkInfo:
     """Collect everything the Devices view shows about the local network.
 

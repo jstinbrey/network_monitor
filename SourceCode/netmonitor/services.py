@@ -8,14 +8,17 @@ import math
 import socket
 import threading
 import time
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
+from subprocess import TimeoutExpired
 
 from netmonitor import config, models, store
 from netmonitor.core import (advisor, auth, bandwidth, diagnosis, discovery, netinfo, pinger, ports, report_builder,
-                             statistics, tracer, vendor, watch, wifi)
+                             router_clients, statistics, tracer, vendor, watch, wifi)
 
 validate_ip = pinger.validate_ip          # raises ValueError on bad input
 network_info = netinfo.get_network_info   # Feature 1: local IP, range, gateway
+ipv6_gateway = netinfo.get_ipv6_gateway
 hop_segment = tracer.segment              # traceroute: "your router", "ISP access network" or "internet"
 describe_bandwidth = bandwidth.describe   # the Connection view's verdict line
 describe_wifi = wifi.describe             # "Excellent signal (92%, -43 dBm) on 5 GHz channel 40, WPA2-Personal"
@@ -38,6 +41,52 @@ def _network_id(info, macs=None) -> str:
     return f"{info.cidr} via {macs.get(info.gateway, 'no gateway')}"
 
 
+@dataclass(frozen=True)
+class _Network:
+    info: models.NetworkInfo
+    key: str
+    neighbours: dict[str, str]
+    ipv6: bool = False
+    ipv6_gateway: str | None = None
+
+
+def _network_snapshot():
+    info = netinfo.get_network_info()
+    neighbours = discovery.read_arp(info.local_ip, ipaddress.ip_network(info.cidr))
+    return _Network(info, _network_id(info, neighbours), neighbours)
+
+
+def _probe_snapshot(ipv6=False):
+    current = _network_snapshot()
+    if not ipv6:
+        return current
+    return replace(current, neighbours=current.neighbours | discovery.read_ipv6_neighbours(current.info.local_ip),
+                   ipv6=True, ipv6_gateway=netinfo.get_ipv6_gateway())
+
+
+_NETWORK_CHANGED = "The network changed during this operation. Run it again on the current network."
+
+
+def _confirm_network(started):
+    try:
+        current = _probe_snapshot(started.ipv6)
+    except RuntimeError as error:
+        raise RuntimeError(_NETWORK_CHANGED) from error
+    if (started.key, started.info.local_ip, started.ipv6_gateway) != (current.key, current.info.local_ip,
+                                                                    current.ipv6_gateway):
+        raise RuntimeError(_NETWORK_CHANGED)
+    return current
+
+
+def _test_owner(ip, started, current):
+    before = started.neighbours.get(ip)
+    after = current.neighbours.get(ip)
+    if before and after and before != after:
+        raise RuntimeError(f"The device at {ip} changed during this test. Run it again.")
+    mac = after or before
+    return store.device_owner(ip, mac) if mac else None
+
+
 def _with_vendor(devices):
     """Fill in each device's maker. Done here, in a worker thread, because the first lookup reads the registry."""
     for device in devices:
@@ -54,57 +103,69 @@ def _current():
 def scan(on_progress=None):
     """Feature 1: find every active device on the local network and remember them."""
     require_admin()
-    info = netinfo.get_network_info()
-    devices = discovery.discover(info, on_progress)
-    # The scan has just read the ARP table, so the gateway's MAC is already in the results.
-    store.save_scan(devices, _network_id(info, {d.ip: d.mac for d in devices if d.mac}))
+    return _scan(_network_snapshot(), on_progress)
+
+
+def _scan(started, on_progress=None):
+    devices = discovery.discover(started.info, on_progress)
+    _confirm_network(started)
+    store.save_scan(devices, started.key)
     return _with_vendor(devices)
 
 
-def _record(results):
+def _record(results, started):
     """Save ping results. A host with no reply that still answers ARP is up but blocks ICMP."""
-    info = netinfo.get_network_info()
-    neighbours = discovery.read_arp(info.local_ip, ipaddress.ip_network(info.cidr))
-    network = _network_id(info, neighbours)
-    for result in results:
-        if result.status == models.OFFLINE and result.ip in neighbours:
+    current = _confirm_network(started)
+    owners = [_test_owner(result.ip, started, current) for result in results]
+    for result, owner in zip(results, owners):
+        if result.status == models.OFFLINE and result.ip in current.neighbours:
             result.status = models.NO_ICMP
-        store.save_ping(result, network)
+        store.save_ping(result, started.key, owner=owner)
     return results
 
 
 def run_ping(ip, count=config.PING_COUNT):
     """Feature 2: ping one host and store the result."""
-    return _record([pinger.ping(ip, count)])[0]
+    started = _probe_snapshot(":" in ip)
+    return _record([pinger.ping(ip, count)], started)[0]
 
 
 def run_ping_many(ips, count=config.PING_COUNT):
     """Feature 2: ping several hosts in parallel and store the results."""
-    return _record(pinger.ping_many(ips, count))
+    ips = list(ips)
+    started = _probe_snapshot(any(":" in ip for ip in ips))
+    return _record(pinger.ping_many(ips, count), started)
 
 
-def start_continuous_ping(ip, on_reply):
+def prepare_continuous_ping(ip):
+    """Capture the starting network and baseline before launching ping."""
+    session = pinger.PingSession(pinger.validate_ip(ip))
+    started = _probe_snapshot(":" in session.ip)
+    owner = _test_owner(session.ip, started, started)
+    pings = store.get_pings(session.ip, started.key, owner=owner)
+    session.history = [rtt for p in pings for rtt in p.rtts_ms][-config.BASELINE_WINDOW:]
+    return started, session
+
+
+def start_continuous_ping(prepared, on_reply):
     """Feature 2: ping -t until Stop; returns the running ping, for Stop. Raises ValueError for a bad IP.
 
     on_reply(session, rtt_ms or None, line) is called from the reader thread for each reply.
     Starting a child process takes milliseconds, so a view may call this one directly.
     """
-    session = pinger.PingSession(pinger.validate_ip(ip))
+    started, session = prepared
+    network_changed = threading.Event()
 
     def reply(rtt, line):                         # reader thread
+        if netinfo.get_local_ip() != started.info.local_ip:
+            network_changed.set()
         session.add(rtt)
         on_reply(session, rtt, line)
 
-    def load_history():                           # the network id takes about 0.2 s, so not on the UI thread
-        try:
-            pings = store.get_pings(session.ip, _network_id(netinfo.get_network_info()))
-        except RuntimeError:                      # not connected: the session learns from its own replies
-            return
-        session.history = [rtt for p in pings for rtt in p.rtts_ms][-config.BASELINE_WINDOW:]
-
-    threading.Thread(target=load_history, daemon=True).start()
-    handle = pinger.ContinuousPing(ip, reply)
+    handle = pinger.ContinuousPing(session.ip, reply)
     handle.session = session
+    handle.started = started
+    handle.network_changed = network_changed
     _running.add(handle)
     return handle
 
@@ -113,24 +174,38 @@ def stop_continuous_ping(handle):
     """Stop a continuous ping, store it like any other ping test, and return its verdict (status, sentence)."""
     handle.stop()
     _running.discard(handle)
+    if handle.network_changed.is_set():
+        raise RuntimeError(_NETWORK_CHANGED)
     if handle.session.rtts:
-        _record([handle.session.result()])        # stored like any ping; the ARP check is included
+        _record([handle.session.result()], handle.started)
     return handle.session.verdict()
 
 
-def start_traceroute(target, on_hop, on_done):
+def _trace_address(target, version):
+    target = target.strip()
+    if not target:
+        raise ValueError("Enter an IP address or hostname.")
+    try:
+        ipaddress.ip_address(target)
+    except ValueError:
+        if ":" in target or "%" in target:
+            raise ValueError("Enter a valid IPv6 address.") from None
+        family = socket.AF_INET6 if version == 6 else socket.AF_INET
+        try:
+            address = socket.getaddrinfo(target, None, family, socket.SOCK_STREAM)[0][4]
+        except (OSError, UnicodeError, IndexError):
+            raise ValueError(f"No IPv{version or 4} address found for this hostname.") from None
+        target = f"{address[0]}%{address[3]}" if family == socket.AF_INET6 and address[3] else address[0]
+    return pinger.validate_ip(target, version)
+
+
+def start_traceroute(target, on_hop, on_done, version=None):
     """Feature 2 extension: trace the route to an IP address or a name; returns the running trace, for Stop.
 
     on_hop(hop) is called as each hop arrives, and on_done((hops, status, sentence)) at the end,
     both from the trace's own thread.
     """
-    target = target.strip()
-    try:
-        ip = pinger.validate_ip(socket.gethostbyname(target)) if target else None
-    except (OSError, UnicodeError, ValueError):     # a name that does not resolve
-        ip = None
-    if ip is None:
-        raise ValueError("Enter an IP address or a host name that exists, for example 1.1.1.1.")
+    ip = _trace_address(target, version)
 
     def done(hops):
         _running.discard(trace)
@@ -142,7 +217,7 @@ def start_traceroute(target, on_hop, on_done):
     return trace
 
 
-_last_verdict = None                  # (time, Verdict) of the latest diagnosis, for the report
+_last_verdict = None                  # (network, time, Verdict) of the latest diagnosis, for the report
 
 
 def diagnose(on_step=None):
@@ -161,9 +236,10 @@ def diagnose(on_step=None):
 
     m = models.Measurements()
     try:
-        info = netinfo.get_network_info()
+        started = _network_snapshot()
     except RuntimeError:                          # not connected to any network
-        info = None
+        started = None
+    info = started.info if started else None
     m.local_ip = info.local_ip if info else None
     adapter = netinfo.get_adapter(m.local_ip) if info else None
     usable = info is not None and not m.local_ip.startswith("169.254.")
@@ -185,17 +261,28 @@ def diagnose(on_step=None):
         m.dns_public_ms = diagnosis.dns_query(diagnosis.PUBLIC_DNS)
         step("DNS", m.dns_ms is not None, "no answer" if m.dns_ms is None else f"{m.dns_ms:g} ms")
     verdict = diagnosis.verdict(m)
-    _last_verdict = (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), verdict)
+    if started:
+        _confirm_network(started)
+        _last_verdict = (started.key, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), verdict)
     return verdict
 
 
-def devices():
-    """Feature 1: the devices stored for this network, shown when the Devices view opens."""
-    return _current()[1]
+def devices(version=4):
+    """Device picker targets for one address family on the current LAN."""
+    if version == 4:
+        return _current()[1]
+    info, _, _, stored = _live()
+    neighbours = discovery.read_ipv6_neighbours(info.local_ip)
+    return [replace(device, ip=ip) for device in discovery.merge_ipv6(stored, neighbours)
+            for ip in device.ipv6_addresses]
+
+
+def _device_pings(device, network):
+    return store.get_pings(device.ip, network, owner=store.device_owner(device.ip, device.mac))
 
 
 def _stats(devices, network):
-    return [statistics.host_stats(device, store.get_pings(device.ip, network)) for device in devices]
+    return [statistics.host_stats(device, _device_pings(device, network)) for device in devices]
 
 
 def stats():
@@ -212,60 +299,83 @@ def device_overview():
 
 def refresh_all():
     """Feature 3: ping every known device, then return fresh statistics."""
-    network, devices = _current()
-    run_ping_many([device.ip for device in devices])
-    return _stats(devices, network)
+    return _refresh_all(_network_snapshot())
+
+
+def _refresh_all(started):
+    devices = _with_vendor(store.get_devices(started.key))
+    _record(pinger.ping_many([device.ip for device in devices]), started)
+    return _stats(devices, started.key)
 
 
 def history(ip, limit=10):
     """Feature 3: the most recent ping tests of one host, oldest first, for the history chart."""
-    network = _network_id(netinfo.get_network_info())
-    return store.get_pings(ip, network)[-limit:]
+    current = _probe_snapshot(":" in ip)
+    return store.get_pings(ip, current.key, owner=_test_owner(ip, current, current))[-limit:]
 
 
 def device_detail(ip):
     """Device panel: one device, its statistics, its last 10 ping tests and its latest port check."""
-    network, devices = _current()
-    device = next((d for d in devices if d.ip == ip), None) or models.Device(ip=ip)   # pinged but never scanned
-    pings = store.get_pings(ip, network)
+    return _device_detail(ip, _probe_snapshot(":" in ip))
+
+
+def _device_detail(ip, current):
+    network = current.key
+    stored = store.get_devices(network)
+    device = next((d for d in stored if d.ip == ip), None)
+    mac = current.neighbours.get(ip)
+    if device is None or mac and store.device_owner(ip, mac) != store.device_owner(ip, device.mac):
+        device = models.Device(ip=ip, mac=mac)
+    if ":" in ip and mac:
+        known = next((d for d in stored if store.device_owner(d.ip, d.mac) == store.device_owner(ip, mac)), None)
+        if known:
+            device.hostname, device.alias = known.hostname, known.alias
+        elif device.hostname == "Unknown":
+            device.hostname = "IPv6 neighbor"
+    device.vendor = vendor.vendor(device.mac)
+    owner = store.device_owner(ip, device.mac)
+    pings = _device_pings(device, network)
     since = (datetime.now() - timedelta(hours=24)).isoformat(timespec="seconds")
     presence = store.get_presence(network, device.mac, since) if device.mac else []
     baseline = statistics.baseline([reply for test in pings[:-1] for reply in test.rtts_ms])
     return models.DeviceDetail(device, statistics.host_stats(device, pings), pings[-10:],
-                               store.get_port_checks(network).get(ip), presence, watch.uptime_pct(presence),
+                               store.get_port_check(network, owner), presence, watch.uptime_pct(presence),
                                baseline[0] if baseline else None)
 
 
 def set_alias(ip, name):
     """Admin: give a device a name that is shown instead of its hostname. An empty name removes it."""
     require_admin()
-    store.set_alias(ip, name.strip()[:config.ALIAS_MAX_LEN], _network_id(netinfo.get_network_info()))
-    return device_detail(ip)
+    current = _network_snapshot()
+    store.set_alias(ip, name.strip()[:config.ALIAS_MAX_LEN], current.key, owner=_test_owner(ip, current, current))
+    return _device_detail(ip, current)
 
 
 def check_ports(ip):
     """Admin, Feature 5 bonus: which common TCP ports a device has open. The result is kept for the advisor."""
     require_admin()
-    store.save_port_check(ip, ports.check_ports(ip), _network_id(netinfo.get_network_info()))
-    return device_detail(ip)
+    started = _network_snapshot()
+    findings = ports.check_ports(ip)
+    current = _confirm_network(started)
+    owner = _test_owner(ip, started, current)
+    store.save_port_check(ip, findings, started.key, owner=owner)
+    return _device_detail(ip, current)
 
 
-def _live():
+def _live(started=None):
     """(details, live ARP table, network id, stored devices) for the network this PC is on now.
 
     The spoofing check needs the live table: stored devices keep old IPs after DHCP hands out new ones.
     """
-    info = netinfo.get_network_info()
-    arp = discovery.read_arp(info.local_ip, ipaddress.ip_network(info.cidr))
-    network = _network_id(info, arp)
-    return info, arp, network, _with_vendor(store.get_devices(network))
+    current = _confirm_network(started) if started else _network_snapshot()
+    return current.info, current.neighbours, current.key, _with_vendor(store.get_devices(current.key))
 
 
 def _baselines(devices, network):
     """{ip: (latest test's average, baseline of every earlier reply)} for the "slower than usual" rule."""
     found = {}
     for device in devices:
-        pings = store.get_pings(device.ip, network)
+        pings = _device_pings(device, network)
         if pings and pings[-1].avg_ms is not None:
             found[device.ip] = (pings[-1].avg_ms, statistics.baseline([r for p in pings[:-1] for r in p.rtts_ms]))
     return found
@@ -276,24 +386,41 @@ def _advice(info, arp, network, devices, host_stats, link):
                              _baselines(devices, network), link)
 
 
-def map_data(update=None):
+def read_router_clients(text):
+    """Bind the pasted client list to the network the administrator is using."""
+    require_admin()
+    clients = router_clients.read_table(text)
+    return router_clients.Snapshot(_network_snapshot().key, datetime.now().isoformat(timespec="minutes"), clients)
+
+
+def map_data(update=None, router_snapshot=None):
     """Map view: (devices, {ip: HostStats}, IPs with a finding) for the network this PC is on now.
 
     update: "ping" pings every known device first; "scan" (Admin) scans for devices first, then pings them.
     A finding is a security one: a risky open port, or the device's MAC answering for several IPs in the live
     ARP table. Offline and slow devices already show in their node and link colours; new ones have a red ring.
     """
-    if update == "scan":
-        scan()
     if update:
-        refresh_all()
-    info, arp, network, devices = _live()
+        if update == "scan":
+            require_admin()
+        started = _network_snapshot()
+        if update == "scan":
+            _scan(started)
+        _refresh_all(started)
+        info, arp, network, devices = _live(started)
+    else:
+        info, arp, network, devices = _live()
     host_stats = _stats(devices, network)
     recs = _advice(info, arp, network, devices, host_stats, None)
     macs = list(arp.values())
     issues = {r.host for r in recs if r.category == "Open ports" and r.severity != "info"}   # not the router's HTTP note
     issues |= {ip for ip, mac in arp.items() if macs.count(mac) > 1}
-    return devices, {s.ip: s for s in host_stats}, issues
+    if router_snapshot and router_snapshot.network == network:
+        devices = router_clients.add_to_map(devices, router_snapshot.clients)
+    devices = discovery.merge_ipv6(devices, discovery.read_ipv6_neighbours(info.local_ip))
+    stats_by_ip = {s.ip: s for s in host_stats}
+    stats_by_ip.update({s.ip: s for s in _stats([d for d in devices if d.ip not in stats_by_ip], network)})
+    return devices, stats_by_ip, issues
 
 
 def wifi_link():
@@ -321,11 +448,12 @@ def generate_report(fmt):
     info, arp, network, devices = _live()
     host_stats = _stats(devices, network)
     link, note = wifi_link()
-    diagnosed_at, verdict = _last_verdict or ("", None)
+    last = _last_verdict
+    diagnosed_at, verdict = last[1:] if last and last[0] == network else ("", None)
     return report_builder.build({
         "info": info, "devices": devices, "stats": host_stats, "summary": statistics.summary(host_stats),
         "recommendations": _advice(info, arp, network, devices, host_stats, link),
-        "pings": [ping for device in devices for ping in store.get_pings(device.ip, network)[-1:]],   # latest per device
+        "pings": [ping for device in devices for ping in _device_pings(device, network)[-1:]],   # latest per device
         "verdict": verdict, "diagnosed_at": diagnosed_at, "ports": store.get_port_checks(network),
         "events": store.get_events(network, 10), "wifi": wifi.describe(link) if link else note,
         "usage_bytes": usage_today(),
@@ -337,9 +465,9 @@ def reports():
     return sorted(config.OUTPUT_DIR.glob("report_*.*"), reverse=True)
 
 
-def dashboard():
+def dashboard(started=None):
     """Dashboard: the network summary, per-host statistics, recommendations and the Wi-Fi link in one call."""
-    info, arp, network, devices = _live()
+    info, arp, network, devices = _live(started) if started else _live()
     host_stats = _stats(devices, network)
     link = wifi_link()
     return statistics.summary(host_stats), host_stats, _advice(info, arp, network, devices, host_stats, link[0]), link
@@ -377,15 +505,17 @@ def undo_mark_known(change):
 def scan_and_refresh(on_progress=None):
     """Dashboard button for an Admin: scan for devices, ping every one, then return fresh dashboard data."""
     require_admin()
-    scan(on_progress)
-    refresh_all()
-    return dashboard()
+    started = _network_snapshot()
+    _scan(started, on_progress)
+    _refresh_all(started)
+    return dashboard(started)
 
 
 def refresh_dashboard():
     """Dashboard button for a User, who may not scan: ping the known devices, then return fresh dashboard data."""
-    refresh_all()
-    return dashboard()
+    started = _network_snapshot()
+    _refresh_all(started)
+    return dashboard(started)
 
 
 def clear_history():
@@ -500,13 +630,17 @@ def usage_today():
 
 # --- Watch mode -------------------------------------------------------------
 _watch = watch.WatchState()
+_watch_network = None
+_watch_attachment = None
 
 
 def start_watch():
     """Admin: start watch mode afresh. Its first check only records who is present."""
-    global _watch
+    global _watch, _watch_network, _watch_attachment
     require_admin()
     _watch = watch.WatchState()
+    _watch_network = None
+    _watch_attachment = None
 
 
 def watch_tick():
@@ -514,11 +648,33 @@ def watch_tick():
 
     Also stores a presence row (up or down) for every known device, for its uptime.
     """
-    found = scan()                                # checks the admin role and stores the scan
-    network = _network_id(netinfo.get_network_info(), {d.ip: d.mac for d in found if d.mac})
+    global _watch, _watch_network, _watch_attachment
+    require_admin()
+    started, watch_state = _network_snapshot(), _watch
+    network = started.key
+    try:
+        link = wifi.read()
+    except (wifi.WifiUnavailable, OSError, TimeoutExpired, ValueError):
+        link = None
+    attachment = (link.ssid, link.bssid, started.info.cidr, started.info.gateway) if link and link.bssid else None
+    found = _scan(started)
     stored = {d.mac: d for d in _with_vendor(store.get_devices(network)) if d.mac}   # includes devices that left
     gateway = next((d for d in found if d.is_gateway), None)
     events = []
+    spike = None
+
+    if gateway:                                   # judge the router against its own history
+        base = statistics.baseline([rtt for p in _device_pings(gateway, network) for rtt in p.rtts_ms])
+        result = _record([pinger.ping(gateway.ip, config.DIAG_PINGS)], started)[0]
+        if result.avg_ms is not None and base and statistics.is_spike(result.avg_ms, base):
+            spike = f"The router answered in {result.avg_ms:g} ms against a usual {base[0]:.1f} ms."
+    if watch_state is not _watch:
+        return []
+    if _watch_network != network:
+        previous_gateway = _watch.gateway_mac if attachment and attachment == _watch_attachment else None
+        _watch, _watch_network = watch.WatchState(), network
+        _watch.gateway_mac = previous_gateway
+    _watch_attachment = attachment
 
     def add(kind, severity, device, ip, detail):
         events.append(record_event(kind, severity, ip, device and device.mac, detail, network))
@@ -535,12 +691,8 @@ def watch_tick():
             "gateway-mac-changed": f"The router's MAC address changed to {mac}: a new router, or ARP spoofing.",
         }[kind])
 
-    if gateway:                                   # the router judged against its own history (Step 7.4)
-        base = statistics.baseline([rtt for p in store.get_pings(gateway.ip, network) for rtt in p.rtts_ms])
-        result = run_ping(gateway.ip, config.DIAG_PINGS)
-        if result.avg_ms is not None and base and statistics.is_spike(result.avg_ms, base):
-            add("spike", "warning", gateway, gateway.ip,
-                f"The router answered in {result.avg_ms:g} ms against a usual {base[0]:.1f} ms.")
+    if spike:
+        add("spike", "warning", gateway, gateway.ip, spike)
 
     store.add_presence(network, datetime.now().isoformat(timespec="seconds"),
                        [(mac, mac in seen) for mac, device in stored.items() if device.known])

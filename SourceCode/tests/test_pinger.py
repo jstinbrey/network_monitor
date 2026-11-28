@@ -39,6 +39,21 @@ def test_bad_input_is_rejected(bad):
         pinger.ping(bad)
 
 
+def test_link_local_ipv6_requires_a_numeric_scope():
+    assert pinger.validate_ip("FE80::A%015", 6) == "fe80::a%15"
+    with pytest.raises(ValueError, match="interface index"):
+        pinger.validate_ip("fe80::a", 6)
+    with pytest.raises(ValueError, match="interface index"):
+        pinger.validate_ip("fe80::a%Wi-Fi", 6)
+    with pytest.raises(ValueError, match="switch the address family"):
+        pinger.validate_ip("::1", 4)
+
+
+def test_a_real_ipv6_ping_to_windows_loopback():
+    result = pinger.ping("::1", 1)
+    assert result.ip == "::1" and result.received == 1
+
+
 # --- Step 7.2: continuous ping ------------------------------------------------
 @pytest.mark.parametrize("line, expected", [
     ("Reply from 1.1.1.1: bytes=32 time=12ms TTL=57", (True, 12.0)),
@@ -77,10 +92,15 @@ def test_a_real_continuous_ping_and_stop_ends_it():
 
 def test_stop_stores_the_session_and_stop_all_does_not(monkeypatch):
     recorded = []
-    monkeypatch.setattr(services, "_record", recorded.extend)
+    monkeypatch.setattr(services, "_record", lambda results, started: recorded.extend(results))
+    monkeypatch.setattr(services.netinfo, "get_local_ip", lambda: "127.0.0.1")
+    info = models.NetworkInfo("pc", "127.0.0.1", "255.255.255.0", "127.0.0.0/24",
+                              "127.0.0.1", "127.0.0.254", None, 254)
+    started = services._Network(info, "loopback", {})
     for stop in (services.stop_continuous_ping, lambda handle: services.stop_all()):
         got = threading.Event()
-        handle = services.start_continuous_ping("127.0.0.1", lambda session, rtt, line: got.set())
+        prepared = started, pinger.PingSession("127.0.0.1")
+        handle = services.start_continuous_ping(prepared, lambda session, rtt, line: got.set())
         assert got.wait(5)
         stop(handle)
         assert handle.process.poll() is not None and handle not in services._running

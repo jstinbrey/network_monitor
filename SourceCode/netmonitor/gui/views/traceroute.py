@@ -19,7 +19,13 @@ class TracerouteView(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="transparent")
         self.handle, self.hops = None, []          # the running trace, for Stop; the hops so far
-        theme.page_heading(self, "Traceroute", "Every router between this PC and a target, and where delay starts")
+        self.targets = {}
+        self.target_request = 0
+        actions, _ = theme.page_heading(self, "Traceroute", "Every router between this PC and a target, and where delay starts")
+        self.family = theme.SegmentedButton(actions, values=["IPv4", "IPv6"], height=38,
+                                            command=lambda _: self._family_changed())
+        self.family.set("IPv4")
+        self.family.pack()
 
         bar = ctk.CTkFrame(self, fg_color=theme.SURFACE)
         bar.pack(fill="x", padx=theme.PAD, pady=(0, 16))
@@ -27,22 +33,32 @@ class TracerouteView(ctk.CTkFrame):
                                           image=theme.icon("traceroute", theme.ON_INK, 16),
                                           command=self.trace, **theme.PRIMARY)
         self.button.pack(side="right", padx=12, pady=12)
-        self.target = ctk.CTkEntry(bar, width=214, height=40, corner_radius=20, fg_color=theme.SUBTLE,
-                                   placeholder_text="IP address or hostname")
-        self.target.pack(side="left", padx=(12, 10))
+        picker = ctk.CTkFrame(bar, fg_color=theme.SUBTLE, corner_radius=20, border_width=1,
+                              border_color=theme.BORDER_CONTROL)
+        picker.pack(side="left", fill="x", expand=True, padx=(12, 10))
+        self.target = theme.ComboBox(picker, width=208, height=32, corner_radius=16, values=[], fg_color=theme.SUBTLE,
+                                     button_color=theme.SUBTLE, button_hover_color=theme.BORDER, border_width=0,
+                                     font=theme.BODY_FONT)
+        self.target.set("")
+        self.target.pack(fill="x", expand=True, padx=12, pady=4)
         self.target.bind("<Return>", lambda event: self.trace())
+        self.target.bind("<FocusIn>", lambda _: picker.configure(border_color=theme.INK, border_width=2))
+        self.target.bind("<FocusOut>", lambda _: picker.configure(border_color=theme.BORDER_CONTROL, border_width=1))
         for label in ("Router", "1.1.1.1", "google.com"):
-            theme.ActionButton(bar, text=label, width=72, height=28, corner_radius=14,
-                               fg_color=theme.SUBTLE, border_width=0,
-                               command=lambda value=label: self._choose_target(value)).pack(side="left", padx=(0, 4))
+            shortcut = theme.ActionButton(bar, text=label, width=72, height=28, corner_radius=14,
+                                          fg_color=theme.SUBTLE, border_width=0,
+                                          command=lambda value=label: self._choose_target(value))
+            shortcut.pack(side="left", padx=(0, 4))
+            if label == "1.1.1.1":
+                self.cloudflare = shortcut
 
         result = ctk.CTkFrame(self, fg_color=theme.SURFACE)
         result.pack(fill="x", padx=theme.PAD, pady=(0, 16))
         theme.icon_badge(result, "traceroute", 36, theme.SUBTLE, theme.TEXT, 18).pack(side="left", padx=16, pady=12)
         self.status = theme.WrappedLabel(result, text="", text_color=theme.MUTED, width=86, font=theme.CAPTION_FONT)
         self.status.pack(side="right", padx=12)
-        self.verdict = theme.WrappedLabel(result, text="Enter an address or choose a target.", text_color=theme.TEXT,
-                                          font=theme.CARD_FONT)
+        self.verdict = theme.WrappedLabel(result, text="Choose a device or enter an IP address or hostname.",
+                                          text_color=theme.TEXT, font=theme.CARD_FONT)
         self.verdict.pack(side="left", fill="x", expand=True, pady=12)
 
         card = ctk.CTkFrame(self)
@@ -70,17 +86,56 @@ class TracerouteView(ctk.CTkFrame):
         self.chart_anchor = rows
 
     def _choose_target(self, value):
-        def use_target(target):
-            self.target.delete(0, "end")
-            self.target.insert(0, target)
-            self.target.focus_set()
+        selected = self._target_address()
+        family = self.family.get()
+
+        def use_router(gateway):
+            if self.winfo_exists() and self.family.get() == family and self._target_address() == selected:
+                if gateway:
+                    self._set_target(gateway)
+                    self.target.focus_set()
+                else:
+                    self._show_error(f"A default {family} gateway could not be found.")
 
         if value == "Router":
-            run_async(services.network_info, on_done=lambda info: use_target(info.gateway)
-                      if info.gateway else self._show_error("A default gateway could not be found."),
-                      on_error=self._show_error)
+            if family == "IPv6":
+                run_async(services.ipv6_gateway, on_done=use_router, on_error=self._show_error)
+            else:
+                run_async(services.network_info, on_done=lambda info: use_router(info.gateway), on_error=self._show_error)
         else:
-            use_target(value)
+            if value == "1.1.1.1" and family == "IPv6":
+                value = "2606:4700:4700::1111"
+            self._set_target(value)
+            self.target.focus_set()
+
+    def _target_address(self):
+        value = self.target.get().strip()
+        return self.targets.get(value, value)
+
+    def _set_target(self, address):
+        self.target.set(next((label for label, ip in self.targets.items() if ip == address), address))
+
+    def _fill_targets(self, request, devices):
+        if self.winfo_exists() and request == self.target_request:
+            address = self._target_address()
+            self.targets = {f"{d.alias or d.hostname} · {d.ip}": d.ip for d in devices}
+            self.target.configure(values=list(self.targets))
+            self._set_target(address)
+
+    def _family_changed(self):
+        self.targets.clear()
+        self.target.set("")
+        self.target.configure(values=[])
+        self.cloudflare.configure(text="Cloudflare" if self.family.get() == "IPv6" else "1.1.1.1")
+        self.verdict.configure(text=f"Choose a device or enter an {self.family.get()} address or hostname.",
+                               text_color=theme.TEXT)
+        self._load_targets()
+
+    def _load_targets(self):
+        self.target_request += 1
+        request = self.target_request
+        run_async(services.devices, int(self.family.get()[-1]), on_done=lambda devices: self._fill_targets(request, devices),
+                  on_error=lambda _: self._fill_targets(request, ()))
 
     def _toggle_chart(self):
         if self.chart.winfo_manager():
@@ -92,10 +147,12 @@ class TracerouteView(ctk.CTkFrame):
     def on_show(self, ip=None):
         """ip: trace this device now (the device panel's Traceroute button)."""
         if ip and self.button.cget("text") == "Trace" and self.button.cget("state") == "normal":
-            if self.target.get():
-                self.target.delete(0, "end")
-            self.target.insert(0, ip)
+            self.family.set("IPv6" if ":" in ip else "IPv4")
+            self._family_changed()
+            self._set_target(ip)
             self.trace()
+        else:
+            self._load_targets()
 
     def trace(self):
         if self.button.cget("state") == "disabled":
@@ -109,14 +166,15 @@ class TracerouteView(ctk.CTkFrame):
         self._draw_chart()
         self.verdict.configure(text="Tracing the route…", text_color=theme.MUTED)
         self.button.configure(state="disabled")
+        self.family.configure(state="disabled")
         self.status.configure(text="Starting...", text_color=theme.MUTED)
         # Hops arrive on tracert's own reading thread, so post() carries each one to the UI thread.
-        run_async(services.start_traceroute, self.target.get(),
-                  lambda hop: post(self._add_hop, hop), lambda result: post(self._done, result),
+        run_async(services.start_traceroute, self._target_address(),
+                  lambda hop: post(self._add_hop, hop), lambda result: post(self._done, result), int(self.family.get()[-1]),
                   on_done=self._started, on_error=self._show_error)
 
     def _started(self, handle):
-        if self.button.cget("state") == "disabled":  # still running: _done has not re-enabled the button yet
+        if self.winfo_exists() and self.button.cget("state") == "disabled":
             self.handle = handle
             self.button.configure(text="Stop", state="normal", image=theme.icon("stop", theme.ON_INK, 16))
 
@@ -145,11 +203,16 @@ class TracerouteView(ctk.CTkFrame):
         self.verdict.configure(text=sentence, text_color=VERDICT_COLORS[status])
         self.status.configure(text="1 hop" if len(hops) == 1 else f"{len(hops)} hops")
         self.button.configure(text="Trace", state="normal", image=theme.icon("traceroute", theme.ON_INK, 16))
+        self.family.configure(state="normal")
 
     def _show_error(self, error):
+        if not self.winfo_exists():
+            return
         self.verdict.configure(text=str(error), text_color=theme.RED)
         self.status.configure(text="")
         self.button.configure(state="normal")
+        if not self.handle:
+            self.family.configure(state="normal")
 
     def _style_rows(self, _mode=None):
         for tag, token in theme.TAG_COLORS.items():

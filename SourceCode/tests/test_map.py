@@ -63,7 +63,9 @@ def test_map_data_marks_risky_ports_and_shared_macs_only(tmp_path, monkeypatch):
                        GATEWAY.ip, 254)
     printer = Device(ip="192.168.1.20", mac="ee", hostname="printer")
     arp = {GATEWAY.ip: "aa", PHONE.ip: "cc", TV.ip: "dd", "192.168.1.10": "dd"}   # the TV's MAC answers for two IPs
-    monkeypatch.setattr(services, "_live", lambda: (info, arp, NETWORK, [GATEWAY, PC, PHONE, TV, printer]))
+    found = [GATEWAY, PC, PHONE, TV, printer]
+    store.save_scan(found, NETWORK)
+    monkeypatch.setattr(services, "_live", lambda: (info, arp, NETWORK, found))
     store.save_port_check(PC.ip, [{"port": 23, "service": "Telnet", "risk": "high"}], NETWORK)
     store.save_ping(pinger.build_result(GATEWAY.ip, 4, [2.0] * 4), NETWORK)
     store.save_ping(pinger.build_result(printer.ip, 4, []), NETWORK)            # asleep: red node, but no badge

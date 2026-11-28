@@ -22,13 +22,14 @@ class PingView(ctk.CTkFrame):
         self.app = app
         self.handle, self.replies = None, 0        # the running continuous ping, for Stop; its replies drawn so far
         self.choices = {}
+        self.devices_request = 0
         self.batch_visible = False
         self.live_started = None
-        ctk.CTkLabel(self, text="Ping", font=theme.TITLE_FONT, anchor="w").pack(
-            fill="x", padx=theme.PAD, pady=(12, 0))
-        self.result = theme.WrappedLabel(self, text="Pick a scanned device or enter its IP address.",
-                                         text_color=theme.MUTED)
-        self.result.pack(fill="x", padx=theme.PAD, pady=(0, 12))
+        actions, self.result = theme.page_heading(self, "Ping", "Choose a device or enter an IP address.")
+        self.family = theme.SegmentedButton(actions, values=["IPv4", "IPv6"], height=38,
+                                            command=lambda _: self._family_changed())
+        self.family.set("IPv4")
+        self.family.pack()
 
         bar = ctk.CTkFrame(self, fg_color=theme.SURFACE, corner_radius=20)
         bar.pack(fill="x", padx=theme.PAD, pady=(0, 16))
@@ -102,14 +103,18 @@ class PingView(ctk.CTkFrame):
     def on_show(self, ip=None, ips=None, continuous=False):
         """ip: ping this one device now, continuously if continuous=True. ips: ping all of these and list the results.
         Leaving the view does not stop a continuous ping."""
-        run_async(services.devices, on_done=self._fill_devices)   # the list follows the latest scan
         if (ip or ips) and (self.handle or self.run_button.cget("state") == "disabled"):
             self.result.configure(text="Stop the continuous ping first." if self.handle else
                                   "A ping test is already running.", text_color=theme.AMBER)
             return
         if ip or ips:
+            target = ip or ips[0]
+            self.family.set("IPv6" if ":" in target else "IPv4")
+            self._family_changed()
             self.mode.set("Continuous" if continuous else "Packets")
             self._mode_changed()
+        else:
+            self._load_devices()
         if ip:
             self.ip_entry.set(ip)
             self._choose_device(ip)
@@ -118,8 +123,22 @@ class PingView(ctk.CTkFrame):
             self._busy(f"Pinging {len(ips)} devices...")
             run_async(services.run_ping_many, ips, on_done=self._show_batch, on_error=self._show_error)
 
-    def _fill_devices(self, devices):
-        if self.winfo_exists():                     # the user may have signed in or out while it loaded
+    def _family_changed(self):
+        self.ip_entry.set("")
+        self._choose_device("")
+        self.choices.clear()
+        self.ip_entry.configure(values=[])
+        self.result.configure(text=f"Choose a device or enter an {self.family.get()} address.", text_color=theme.MUTED)
+        self._load_devices()
+
+    def _load_devices(self):
+        self.devices_request += 1
+        request = self.devices_request
+        run_async(services.devices, int(self.family.get()[-1]), on_done=lambda devices: self._fill_devices(request, devices),
+                  on_error=lambda _: self._fill_devices(request, ()))
+
+    def _fill_devices(self, request, devices):
+        if self.winfo_exists() and self.devices_request == request:
             display = self.ip_entry.get()
             selected = self.choices[display].ip if display in self.choices else display
             self.choices = {f"{d.alias or d.hostname} · {d.ip}": d for d in devices}
@@ -159,30 +178,46 @@ class PingView(ctk.CTkFrame):
             return self.stop()
         try:   # validate before starting a thread, so bad input never reaches the ping command
             target = self.ip_entry.get()
-            ip = services.validate_ip(self.choices[target].ip if target in self.choices else target)
-            if self.mode.get() == "Continuous":
-                return self._start(ip)
+            ip = services.validate_ip(self.choices[target].ip if target in self.choices else target,
+                                      int(self.family.get()[-1]))
+        except ValueError as error:
+            return self._show_error(error)
+        if self.mode.get() == "Continuous":
+            return self._start(ip)
+        try:
             count = max(1, min(20, int(self.count_entry.get())))
         except ValueError:
-            return self._show_error("Enter a valid IPv4 address (for example 192.168.1.1) and a packet count.")
+            return self._show_error("Enter a packet count between 1 and 20.")
         self.batch_visible = False
         self.table.pack_forget()
         self._busy(f"Pinging {ip} with {count} packets...")
         run_async(services.run_ping, ip, count, on_done=self._show_result, on_error=self._show_error)
 
     def _start(self, ip):
+        self._busy(f"Preparing continuous ping to {ip}…")
+        self.ip_entry.configure(state="disabled")
+        self.mode.configure(state="disabled")
+        run_async(services.prepare_continuous_ping, ip, on_done=lambda prepared: self._start_prepared(ip, prepared),
+                  on_error=self._show_error)
+
+    def _start_prepared(self, ip, prepared):
+        if not self.winfo_exists():
+            return
+        try:
+            # Replies arrive on ping's reader thread. Deliver them on the Tk thread.
+            self.handle = services.start_continuous_ping(
+                prepared, lambda session, rtt, line: post(self._on_reply, (session, rtt, line)))
+        except OSError as error:
+            self._show_error(error)
+            return
         self.ecg.clear()
         self.replies = 0
-        # Replies arrive on ping's reading thread, so post() carries each one to the UI thread.
-        self.handle = services.start_continuous_ping(ip, lambda session, rtt, line: post(self._on_reply, (session, rtt, line)))
         self.live_started = monotonic()
         self.live.configure(text="Live 00:00")
         self.live.pack(side="left", before=self.run_button, padx=(0, 8))
         for label in self.measurements.values():
             label.configure(text="—", text_color=theme.TEXT)
-        self.run_button.configure(text="Stop", image=theme.icon("stop", theme.ON_INK, 16))
-        self.ip_entry.configure(state="disabled")
-        self.mode.configure(state="disabled")
+        self.run_button.configure(text="Stop", image=theme.icon("stop", theme.ON_INK, 16), state="normal")
         self.app.buttons["Ping"].configure(text="Ping ●")
         self.result.configure(text=f"Pinging {ip} until Stop...", text_color=theme.MUTED)
         self._log(f"--- {ip}, continuous, from {datetime.now():%H:%M:%S} ---")
@@ -224,6 +259,7 @@ class PingView(ctk.CTkFrame):
                                   image=theme.icon("play", theme.ON_INK, 16))
         self.ip_entry.configure(state="normal")
         self.mode.configure(state="normal")
+        self.family.configure(state="normal")
         self.live.pack_forget()
         self.app.buttons["Ping"].configure(text="Ping")
 
@@ -239,6 +275,7 @@ class PingView(ctk.CTkFrame):
 
     def _busy(self, message):
         self.run_button.configure(state="disabled")
+        self.family.configure(state="disabled")
         self.result.configure(text=message, text_color=theme.MUTED)
 
     def _show_result(self, result):
@@ -270,8 +307,8 @@ class PingView(ctk.CTkFrame):
             "avg": f"{r.avg_ms:g} ms" if r.rtts_ms else "-", "max": f"{r.max_ms:g} ms" if r.rtts_ms else "-",
             "status": STATUS_LABELS[r.status], "tag": theme.STATUS_TAGS[r.status],
         } for r in results])
-        self.chart.plot([r.ip.rsplit(".", 1)[1] for r in results if r.rtts_ms],
-                        [r.avg_ms for r in results if r.rtts_ms], "Average latency per device (last octet)")
+        self.chart.plot([r.ip for r in results if r.rtts_ms],
+                        [r.avg_ms for r in results if r.rtts_ms], "Average latency per device", distinct_labels=True)
         self.result.configure(text=f"{len(results)} devices pinged.", text_color=theme.MUTED)
         self._ready()
 

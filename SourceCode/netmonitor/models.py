@@ -10,7 +10,8 @@ ONLINE = "online"        # replies received, no loss, latency within threshold
 DEGRADED = "degraded"    # some loss, or average latency above the threshold
 NO_ICMP = "no-icmp"      # no ping reply but the host answers ARP: it is up
 OFFLINE = "offline"      # no ping reply and no ARP entry
-NO_DATA = "no-data"      # the host has never been pinged
+NO_DATA = "no-data"      # no discovery or ping evidence yet
+REACHABLE_STATUSES = frozenset({ONLINE, DEGRADED, NO_ICMP})
 
 # --- Account roles ----------------------------------------------------------
 ADMIN = "admin"          # can scan, manage accounts and change settings
@@ -19,7 +20,7 @@ USER = "user"            # can look at results and run ping tests
 STATUS_LABELS = {
     ONLINE: "Online",
     DEGRADED: "Degraded",
-    NO_ICMP: "No ICMP reply (host up)",
+    NO_ICMP: "Up, no ping reply",
     OFFLINE: "Offline",
     NO_DATA: "No data",
 }
@@ -65,6 +66,9 @@ class Device:
     first_seen: str = ""
     last_seen: str = ""
     vendor: str = ""             # maker, from the MAC; worked out each time it is loaded, never stored
+    router_ssid: str | None = None   # present only when a copied router table confirms this client
+    router_only: bool = False        # the client appears in the router table alone
+    ipv6_addresses: tuple[str, ...] = ()   # cached IPv6 neighbors, including interface scopes when needed
 
 
 @dataclass
@@ -113,6 +117,7 @@ class HostStats:
     jitter_ms: float | None
     loss_pct: float | None
     status: str
+    last_tested: str = ""
 
 
 @dataclass
@@ -136,7 +141,7 @@ class NetworkSummary:
     network_avg_ms: float | None
     best_host: str | None
     worst_host: str | None
-    health_score: int            # 0 to 100
+    health_score: int | None     # 0 to 100 when ping tests exist
 
 
 @dataclass
@@ -207,6 +212,7 @@ class WifiInfo:
     tx_mbps: float
     signal_pct: int
     rssi_dbm: int
+    bssid: str = ""                 # identifies the access point for Watch
 
     @property
     def quality(self) -> str:

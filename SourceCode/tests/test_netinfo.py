@@ -2,6 +2,15 @@
 from conftest import FIXTURES
 
 from netmonitor.core import netinfo
+
+
+def test_ipv6_default_gateway_uses_the_best_route_and_scopes_it():
+    routes = """
+No       Manual    256  ::/0     15  fe80::1000
+No       Manual    64   ::/0     17  fe80::1
+No       System    32   ::1/128   1  Loopback Pseudo-Interface 1
+"""
+    assert netinfo.parse_ipv6_gateway(routes) == "fe80::1%17"
 from netmonitor.models import NetworkInfo
 
 

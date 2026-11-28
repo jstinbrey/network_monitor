@@ -25,7 +25,7 @@ def parse_hop(line: str) -> Hop | None:
         return None
     times = [None if t == "*" else 0.5 if t.startswith("<") else float(t.split()[0]) for t in found.group(2, 3, 4)]
     try:
-        address = str(ipaddress.IPv4Address(found.group(5)))
+        address = str(ipaddress.ip_address(found.group(5)))
     except ValueError:                       # "Request timed out."
         address = None
     return Hop(int(found.group(1)), times, address)
@@ -44,7 +44,8 @@ def segment(hop: Hop) -> str:
 def analyse(hops: list[Hop], target: str) -> tuple[str, str]:
     """("good" or "warn", one plain sentence) saying whether the target was reached and where delay starts."""
     answered = [h for h in hops if h.avg_ms is not None]
-    if not hops or hops[-1].address != target or hops[-1].avg_ms is None:
+    last_address = hops[-1].address if hops else None
+    if not last_address or last_address.split("%", 1)[0] != target.split("%", 1)[0] or hops[-1].avg_ms is None:
         if not answered:
             return "warn", f"No router answered; {target} was not reached."
         last = answered[-1]
@@ -74,8 +75,9 @@ class Traceroute:
 
     def start(self):
         # -d: no reverse DNS, which would make every hop slower. A list, never shell=True.
+        family = "-6" if ":" in self.ip else "-4"
         self._process = subprocess.Popen(
-            ["tracert", "-d", "-h", str(config.TRACE_MAX_HOPS), "-w", str(config.TRACE_TIMEOUT_MS), self.ip],
+            ["tracert", family, "-d", "-h", str(config.TRACE_MAX_HOPS), "-w", str(config.TRACE_TIMEOUT_MS), self.ip],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, creationflags=NO_WINDOW)
         threading.Thread(target=self._read, daemon=True).start()
 

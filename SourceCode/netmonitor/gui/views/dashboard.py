@@ -209,8 +209,11 @@ class DashboardView(ctk.CTkFrame):
         self.values["Average latency"].configure(text=f"{latency:g} ms" if latency is not None else "—")
         self.values["Wi-Fi signal"].configure(text=f"{link.signal_pct}%" if link else "—")
         self.captions["Devices"].configure(text="On this network" if summary.devices else "Run a scan to begin")
-        self.captions["Reachable"].configure(text=f"{summary.unreachable} unreachable" if summary.unreachable else
-                                             "From device tests" if summary.devices else "No devices yet")
+        unknown = summary.devices - summary.reachable - summary.unreachable
+        reachability = [f"{count} {label}" for count, label in ((summary.unreachable, "unreachable"),
+                                                               (unknown, "unknown")) if count]
+        self.captions["Reachable"].configure(text=" · ".join(reachability) or
+                                             ("From scans and tests" if summary.devices else "No devices yet"))
         self.captions["Average latency"].configure(text="Across stored tests" if latency is not None else "No replies yet")
         self.captions["Wi-Fi signal"].configure(text=f"{link.quality} · {link.band}" if link else
                                                "Wired or offline" if note.startswith("Not on Wi-Fi") else "Unavailable")
@@ -224,7 +227,7 @@ class DashboardView(ctk.CTkFrame):
                         on_pick=lambda i: self.app.open_device(replied[i].ip), distinct_labels=True)
         critical = [rec for rec in recommendations if rec.severity == "critical"]
         warnings = [rec for rec in recommendations if rec.severity == "warning"]
-        self.verdict.set_summary(summary.health_score if summary.devices else None, len(critical), len(warnings))
+        self.verdict.set_summary(summary.health_score, len(critical), len(warnings))
         self._show_findings(critical + warnings)
 
     def _show_findings(self, recs):

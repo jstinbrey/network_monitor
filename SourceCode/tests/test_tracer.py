@@ -27,6 +27,12 @@ def test_less_than_one_ms_and_timeouts():
     assert (lost.number, lost.address, lost.loss_pct, lost.avg_ms) == (15, None, 100.0, None)
 
 
+def test_ipv6_hop_reaches_a_link_local_target_with_an_interface_index():
+    hop = tracer.parse_hop("  1    <1 ms    <1 ms    <1 ms  fe80::1")
+    assert hop.address == "fe80::1"
+    assert tracer.analyse([hop], "fe80::1%15")[0] == "good"
+
+
 def test_loss_and_average_of_one_hop():
     hop = Hop(5, [None, 37.0, 36.0], "210.213.134.106")
     assert (hop.loss_pct, hop.avg_ms) == (33.3, 36.5)
@@ -73,6 +79,12 @@ def test_a_real_trace_to_this_pc_and_stop_ends_tracert():
     trace.start()
     trace.stop()
     assert stopped.wait(5) and trace._process.poll() is not None    # no tracert.exe is left running
+
+
+def test_a_real_ipv6_trace_to_windows_loopback():
+    done, found = threading.Event(), []
+    tracer.Traceroute("::1", found.append, lambda _: done.set()).start()
+    assert done.wait(15) and [hop.address for hop in found] == ["::1"]
 
 
 def test_an_unknown_target_is_refused():

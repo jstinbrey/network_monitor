@@ -6,7 +6,8 @@ from netmonitor import models, services
 from netmonitor.core import advisor, diagnosis, wifi
 from netmonitor.models import HostStats, Measurements, WifiInfo
 
-LINK = WifiInfo("HomeWiFi", "5 GHz", 40, "802.11ax", "WPA2-Personal", "CCMP", 2042.0, 2269.0, 92, -43)
+LINK = WifiInfo("HomeWiFi", "5 GHz", 40, "802.11ax", "WPA2-Personal", "CCMP", 2042.0, 2269.0, 92, -43,
+                bssid="aa:bb:cc:00:00:02")
 
 
 def interfaces(name="wlan_interfaces.txt"):

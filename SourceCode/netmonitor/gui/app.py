@@ -213,6 +213,8 @@ class App(ctk.CTk):
         self._watch_busy = False
         for event in events:
             self.alert(event)
+        if self._watch_job and self.current == "Map":
+            self.views["Map"].refresh_after_watch()
 
     def _watch_failed(self, error):
         self._watch_busy = False

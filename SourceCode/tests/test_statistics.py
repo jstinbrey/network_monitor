@@ -54,4 +54,24 @@ def test_health_score_penalties():
 
 def test_summary_of_nothing():
     s = statistics.summary([])
-    assert (s.devices, s.network_avg_ms, s.best_host, s.health_score) == (0, None, None, 0)
+    assert (s.devices, s.network_avg_ms, s.best_host, s.health_score) == (0, None, None, None)
+
+
+def test_discovery_reports_reachability_without_a_health_score():
+    discovered = models.Device("192.168.1.5", replied_icmp=True)
+    seen_only = models.Device("192.168.1.6", mac="aa-bb", last_seen="2026-11-28T12:00:00")
+    unknown = models.Device("192.168.1.7")
+    stats = [statistics.host_stats(device, []) for device in (discovered, seen_only, unknown)]
+    assert [s.status for s in stats] == [models.ONLINE, models.NO_ICMP, models.NO_DATA]
+    summary = statistics.summary(stats)
+    assert (summary.devices, summary.reachable, summary.unreachable, summary.health_score) == (3, 2, 0, None)
+
+
+def test_status_uses_newer_discovery_or_ping_evidence():
+    device = models.Device(PHONE.ip, replied_icmp=True, last_seen="2026-11-28T12:01:00")
+    [ping] = runs([])
+    ping.timestamp = "2026-11-28T12:00:00"
+    stats = statistics.host_stats(device, [ping])
+    assert stats.status == models.ONLINE and stats.last_tested == ping.timestamp
+    ping.timestamp = "2026-11-28T12:02:00"
+    assert statistics.host_stats(device, [ping]).status == models.OFFLINE

@@ -16,6 +16,7 @@ def fresh(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "t.db")
     monkeypatch.setattr(services, "_network_id", lambda info, macs=None: NETWORK)
     monkeypatch.setattr(services.netinfo, "get_network_info", lambda: None)
+    monkeypatch.setattr(services, "_network_snapshot", lambda: services._Network(None, NETWORK, {}))
     monkeypatch.setattr(services, "_user", models.User("admin", models.ADMIN))
 
 

@@ -92,6 +92,7 @@ class MapCanvas(tk.Canvas):
             self.create_text(cx, cy, text="No devices yet. Select Scan network.", fill=theme.color(theme.TEXT_2))
         else:
             self._draw_devices(devices, stats, issues, gateway, width, height, scale)
+            self._fit_bounds()
         self._update_scrollregion()
         self._move_view(0, 0)
         selected = self.selected if self.selected in self.nodes else None
@@ -144,7 +145,8 @@ class MapCanvas(tk.Canvas):
         image = glyph.create_scaled_photo_image(scale, ctk.get_appearance_mode().lower())
         self.create_image(x, y, image=image, tags=tags)
         if compact:
-            self.create_text(x, y + radius + 7, text=f".{ip.rsplit('.', 1)[-1]}", fill=theme.color(theme.TEXT_2),
+            suffix = f":{ip.split('%', 1)[0].rsplit(':', 1)[-1] or '0'}" if ":" in ip else f".{ip.rsplit('.', 1)[-1]}"
+            self.create_text(x, y + radius + 7, text=suffix, fill=theme.color(theme.TEXT_2),
                              font=(theme.MONO, 8), tags=tags)
         else:
             line = f"{label}\n{ip}" if status == models.ONLINE else f"{label}\n{ip} · {status_text}"
@@ -156,9 +158,16 @@ class MapCanvas(tk.Canvas):
             self.create_oval(bx - 7, by - 7, bx + 7, by + 7, fill=theme.color(theme.RED), outline=surface, tags=tags)
             self.create_text(bx, by, text="!", fill=theme.color(theme.ON_INK), font=(theme.SANS_SEMIBOLD, 9), tags=tags)
         latency = f"{stats.avg_ms:g} ms average" if stats and stats.avg_ms is not None else None
+        last_seen = f"Last seen {device.last_seen[:16].replace('T', ' ')}" if device.last_seen else None
+        last_tested = (f"Last tested {stats.last_tested[:16].replace('T', ' ')}"
+                       if stats and stats.last_tested else None)
+        router = (f"Router snapshot · {device.router_ssid or 'Wi-Fi client'}"
+                  if device.router_ssid is not None else None)
+        ipv6 = [f"IPv6 {address}" for address in device.ipv6_addresses if address != ip]
         self.tips[ip] = tuple(filter(None, (device.alias or device.hostname, ip, status_text, latency,
                                             "New device" if not device.known else None, "Finding" if issue else None,
-                                            device.mac, device.vendor)))
+                                            "Windows IPv6 neighbor cache" if device.ipv6_addresses else None,
+                                            *ipv6, router, last_seen, last_tested, device.mac, device.vendor)))
 
     def _apply_palette(self, _mode):
         self.configure(background=theme.color(theme.SURFACE), highlightbackground=theme.color(theme.SURFACE),
@@ -272,8 +281,23 @@ class MapCanvas(tk.Canvas):
         self._update_scrollregion()
 
     def fit(self):
-        """Restore the layout to the available canvas."""
+        """Restore the default positions and fit the full layout into the canvas."""
+        if self._draw_job is not None:
+            self.after_cancel(self._draw_job)
         self._layout()
+
+    def _fit_bounds(self):
+        x0, y0, x1, y1 = self.bbox("all")
+        width, height = self.winfo_width(), self.winfo_height()
+        margin = round(24 * ctk.ScalingTracker.get_widget_scaling(self.master))
+        if min(width, height) <= 2 * margin:
+            return
+        if margin <= x0 and x1 <= width - margin and margin <= y0 and y1 <= height - margin:
+            return
+        factor = min(1, (width - 2 * margin) / (x1 - x0), (height - 2 * margin) / (y1 - y0))
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        self.scale("all", cx, cy, factor, factor)
+        self.move("all", width / 2 - cx, height / 2 - cy)
 
     def menu(self, ip):
         """Create the context menu for one device."""
@@ -281,7 +305,8 @@ class MapCanvas(tk.Canvas):
                        foreground=theme.color(theme.TEXT), activebackground=theme.color(theme.INK),
                        activeforeground=theme.color(theme.ON_INK))
         for label, command in self.menu_items:
-            menu.add_command(label=label, state="normal" if command else "disabled",
+            available = command and not (":" in ip and label.startswith("Check ports"))
+            menu.add_command(label=label, state="normal" if available else "disabled",
                              command=lambda command=command: command(ip))
         return menu
 

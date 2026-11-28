@@ -28,6 +28,7 @@ def test_html_has_the_four_required_parts(tmp_path):
     assert path.name.startswith("report_20") and path.suffix == ".html"
     assert "Generated: 20" in html                                         # date and time
     assert "Devices Detected (2)" in html and "192.168.1.20" in html       # devices detected
+    assert "<td>Degraded</td>" in html.split("<h2>Ping Results</h2>")[0]   # same status as the latest test
     assert "Ping Results" in html and "25.0%" in html                      # ping results
     assert "Network Performance Summary" in html and "/ 100" in html       # performance summary
     assert "Security Recommendations" in html and "Weak connectivity to" in html   # Feature 5 advice
@@ -41,6 +42,7 @@ def test_html_escapes_hostnames(tmp_path):
 def test_report_with_no_devices_still_renders(tmp_path):
     html = report_builder.build(report_data([]), "html", tmp_path).read_text(encoding="utf-8")
     assert "No devices found" in html and "No ping tests" in html
+    assert "Health score<b>No data</b>" in html
 
 
 def test_csv_has_a_header_and_one_row_per_device(tmp_path):

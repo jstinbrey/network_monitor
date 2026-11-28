@@ -49,7 +49,7 @@
   <tr><th>IP Address</th><th>Hostname</th><th>MAC Address</th><th>Vendor</th><th>Status</th><th>Open Ports</th><th>Last Seen</th></tr>
   {% for d in devices %}
   <tr><td>{{ d.ip }}</td><td>{{ d.hostname }}</td><td>{{ d.mac or "-" }}</td><td>{{ d.vendor }}</td>
-      <td>{{ "Online" if d.replied_icmp else "No ICMP reply (host up)" }}</td><td>{{ ports.get(d.ip) | ports }}</td>
+      <td>{{ device_statuses.get(d.ip, labels['no-data']) }}</td><td>{{ ports.get(d.ip) | ports }}</td>
       <td>{{ d.last_seen }}</td></tr>
   {% endfor %}
 </table>
@@ -78,7 +78,7 @@
   <div class="card">Reachable<b>{{ summary.reachable }}</b></div>
   <div class="card">Unreachable<b>{{ summary.unreachable }}</b></div>
   <div class="card">Average latency<b>{{ ms(summary.network_avg_ms) }}</b></div>
-  <div class="card">Health score<b>{{ summary.health_score }} / 100</b></div>
+  <div class="card">Health score<b>{{ health_text }}</b></div>
 </div>
 <p>Fastest host: {{ summary.best_host or "No data" }} &nbsp;|&nbsp; Slowest host: {{ summary.worst_host or "No data" }}</p>
 {% if stats %}

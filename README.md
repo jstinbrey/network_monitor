@@ -11,14 +11,14 @@ Final project for CCS 234 (Communications and Networking), West Visayas State Un
 | | Feature | What it does |
 |---|---|---|
 | 1 | **Network Discovery** | Finds devices on the local IPv4 network. Search by name, IP, MAC address or vendor, filter by status, and open a device’s details in the right-hand drawer. **Network details** shows the local IP, subnet mask, address range, and gateway. |
-| 2 | **Connectivity Testing** | Ping one device or a batch. **Continuous** mode charts reply times live and shows packet loss, jitter, and the longest outage. |
+| 2 | **Connectivity Testing** | Ping one device or a batch over IPv4 or IPv6. **Continuous** mode charts reply times live and shows packet loss, jitter, and the longest outage. |
 | 3 | **Network Statistics** | See average and maximum latency, packet loss, and jitter across stored results. Select a device to see its history. |
 | 4 | **Report Generator** | Save a network snapshot as HTML, CSV, or PDF. Open saved reports from the **Reports** view. |
 | 5 | **Security Recommendations** | Review findings such as new devices, risky open ports, weak Wi-Fi security, and possible ARP anomalies. |
 
 - **Dashboard** shows a network health score from 0 to 100 and runs the guided diagnosis.
-- **Map** shows device status and logical links to the gateway. Select a device to open its details.
-- **Traceroute** shows the routers between this PC and a target, with probe times and a verdict on where delay starts.
+- **Map** shows device status and logical links to the gateway. It includes IPv6 addresses from Windows’ neighbor cache and groups them with IPv4 addresses when the MAC matches.
+- **Traceroute** shows the IPv4 or IPv6 path to a target, with probe times and a verdict on where delay starts.
 - **Connection** shows Wi-Fi signal and nearby channels, live upload and download rates, and this PC’s data use for the day.
 - **Watch** periodically checks for devices joining or going offline and records uptime samples for known devices.
 
@@ -57,6 +57,8 @@ NetMonitor opens as a guest. For your first scan, click **Admin sign in** in the
 2. Click a device row to open its details, or select several checkboxes and click **Ping** in the selection bar. The drawer shows recent tests, uptime when available, and actions for **Ping**, **Continuous ping**, and **Traceroute**.
 3. In **Dashboard**, click **Diagnose network** to check the connection. In **Statistics**, click **Re-test devices** to ping every listed device and update the stored results.
 4. Review findings in **Security**. In **Reports**, select a format, click **Generate report**, then click **Open** when the file is ready.
+
+Use the **IPv4 / IPv6** switch in **Ping** or **Traceroute** to choose an address family. For a manual link-local IPv6 address, include the Windows interface index after `%`, as in `fe80::1%15`. Device picker entries include that index when needed.
 
 | Access | Available actions |
 |---|---|
@@ -130,7 +132,7 @@ A tag with a suffix such as `-rc.1` publishes a pre-release.
 ## Known limitations
 
 - **Windows only.** The app uses Windows networking commands. Wi-Fi details depend on English `netsh` output.
-- **IPv4 only**, and a scan covers at most 254 addresses (a /24).
+- **Discovery starts from an IPv4 LAN.** A scan covers at most 254 IPv4 addresses (a /24). IPv6 discovery uses the active adapter’s neighbor cache, and port checks use IPv4.
 - **Hostnames are not always available.** Many phones show as "Unknown".
 - **Device discovery is limited by the network.** Wi-Fi client isolation can prevent discovery of other devices.
 - **Bandwidth measures this PC’s traffic while NetMonitor is running.** The map shows logical links between devices and the gateway.

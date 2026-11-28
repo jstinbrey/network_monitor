@@ -1,68 +1,93 @@
-"""Continuous ping chart: reply times drawn like a heart monitor."""
-import math
+"""Live latency trace on a Tk canvas, with separate loss and spike markers."""
 from collections import deque
+from math import ceil
+import tkinter as tk
 
 import customtkinter as ctk
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
 
 from netmonitor import config
 from netmonitor.gui import theme
 
-PAPER, GRID_MAJOR, GRID_MINOR, TRACE = theme.PAPER, theme.PAPER_GRID, "#1F2427", theme.LIME   # live: dark chart paper
-
 
 class EcgChart(ctk.CTkFrame):
-    """Reply times drawn like a heart monitor: newest on the right, a gap and a red × for each lost reply,
-    an amber dot for each reply far slower than the host's usual (a spike)."""
-
     def __init__(self, parent, window=config.ECG_WINDOW):
-        super().__init__(parent)
-        self.points = deque(maxlen=window)        # (reply number, rtt or None, spike)
-        self.note = ctk.CTkLabel(self, text="", text_color=theme.MUTED, anchor="w")   # the baseline, under the chart
-        self.note.pack(side="bottom", fill="x", padx=8)
-        self.figure = Figure(figsize=(5, 2.4), dpi=100, facecolor=PAPER)
-        self.axes = self.figure.add_subplot(111, facecolor=PAPER)
-        self.axes.minorticks_on()
-        self.axes.grid(which="major", color=GRID_MAJOR, linewidth=0.8)
-        self.axes.grid(which="minor", color=GRID_MINOR, linewidth=0.4)
-        self.axes.tick_params(which="both", colors=theme.PAPER_MUTED, labelbottom=False)   # reply numbers mean nothing here
-        self.axes.set_ylabel("ms", color=theme.PAPER_MUTED)
-        self.axes.axhline(config.LATENCY_WARN_MS, color=theme.PAPER_WARN, linestyle="--", linewidth=1)
-        self.trace, = self.axes.plot([], [], color=TRACE, linewidth=1.6)
-        self.head, = self.axes.plot([], [], "o", color=TRACE, markersize=5)
-        self.lost, = self.axes.plot([], [], "x", color=theme.PAPER_BAD, markersize=8, markeredgewidth=2)
-        self.spikes, = self.axes.plot([], [], "o", color=theme.PAPER_WARN, markersize=7)
-        self.readout = self.axes.text(0.98, 0.95, "", transform=self.axes.transAxes, ha="right", va="top",
-                                      color=TRACE, fontsize=20, family=[theme.MONO, "Consolas", "monospace"])
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self)
-        self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=4, pady=4)
-        self.clear()
-        self.figure.tight_layout()
+        super().__init__(parent, fg_color=theme.PAPER)
+        self.points = deque(maxlen=window)
+        self.grid_size = None
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=(14, 4))
+        reading = ctk.CTkFrame(header, fg_color="transparent")
+        reading.pack(side="right", anchor="n", padx=(8, 0))
+        self.readout = ctk.CTkLabel(reading, text="—", text_color=theme.LIME, font=(theme.MONO, 26, "bold"), anchor="e")
+        self.readout.pack(fill="x")
+        ctk.CTkLabel(reading, text="Latest reply", text_color=theme.PAPER_MUTED,
+                     font=theme.CAPTION_FONT, anchor="e").pack(fill="x")
+        ctk.CTkLabel(header, text="Reply time", text_color=theme.PAPER_TEXT, font=theme.CARD_FONT,
+                     anchor="w").pack(fill="x")
+        legend = ctk.CTkFrame(header, fg_color="transparent")
+        legend.pack(anchor="w")
+        for icon, text, color in (("minus", "Reply", theme.LIME), ("clock", "Slower than usual", theme.PAPER_WARN),
+                                  ("x", "Lost", theme.PAPER_BAD)):
+            ctk.CTkLabel(legend, text=text, image=theme.icon(icon, color, 12), compound="left",
+                         text_color=theme.PAPER_MUTED, font=theme.CAPTION_FONT).pack(side="left", padx=(0, 8))
+        self.note = theme.WrappedLabel(self, text="", text_color=theme.PAPER_MUTED, font=theme.CAPTION_FONT)
+        self.note.pack(side="bottom", fill="x", padx=20, pady=(0, 12))
+        self.canvas = tk.Canvas(self, background=theme.PAPER, highlightthickness=0, width=1, height=1)
+        self.canvas.pack(fill="both", expand=True, padx=20, pady=(0, 4))
+        self.canvas.bind("<Configure>", self._redraw_trace)
 
     def add(self, number, rtt, spike=False):
+        """Append one observation and update the live graph."""
         self.points.append((number, rtt, spike))
-        xs = [n for n, _, _ in self.points]
-        ys = [math.nan if r is None else r for _, r, _ in self.points]   # NaN breaks the line: a visible gap
-        top = max(config.ECG_MIN_TOP_MS, max((r for _, r, _ in self.points if r is not None), default=0) * 1.3)
-        self.trace.set_data(xs, ys)
-        self.head.set_data(xs[-1:], ys[-1:])
-        lost = [n for n, r, _ in self.points if r is None]
-        self.lost.set_data(lost, [top * 0.9] * len(lost))
-        self.spikes.set_data([n for n, _, s in self.points if s], [r for _, r, s in self.points if s])
-        self.axes.set_xlim(number - self.points.maxlen + 1, number + 1)
-        self.axes.set_ylim(0, top)
-        self.readout.set_text("LOST" if rtt is None else f"{rtt:g} ms")
-        self.readout.set_color(theme.PAPER_BAD if rtt is None else TRACE)
-        self.canvas.draw_idle()
+        self.readout.configure(text="No reply" if rtt is None else f"{rtt:g} ms",
+                               text_color=theme.PAPER_BAD if rtt is None else theme.LIME)
+        self._redraw_trace()
 
     def clear(self):
-        """An empty screen, ready for a new session."""
+        """Reset the readout and trace for a new session."""
         self.points.clear()
-        for line in (self.trace, self.head, self.lost, self.spikes):
-            line.set_data([], [])
-        self.readout.set_text("")
+        self.readout.configure(text="—", text_color=theme.PAPER_MUTED)
         self.note.configure(text="")
-        self.axes.set_xlim(1, self.points.maxlen + 1)
-        self.axes.set_ylim(0, config.ECG_MIN_TOP_MS)
-        self.canvas.draw_idle()
+        self._redraw_trace()
+
+    def _redraw_trace(self, event=None):
+        width, height = self.canvas.winfo_width(), self.canvas.winfo_height()
+        scale = ctk.ScalingTracker.get_widget_scaling(self)
+        left, right, upper, lower = round(42 * scale), width - round(8 * scale), round(10 * scale), height - round(10 * scale)
+        if right <= left or lower <= upper:
+            return
+        peak = max((rtt for _, rtt, _ in self.points if rtt is not None), default=0)
+        top = max(config.ECG_MIN_TOP_MS, ceil(peak * 1.25))
+        size = (width, height, scale, top)
+        if size != self.grid_size:
+            self.canvas.delete("grid")
+            for index in range(6):
+                y = lower - (lower - upper) * index / 5
+                value = top * index / 5
+                self.canvas.create_line(left, y, right, y, fill=theme.PAPER_GRID, tags="grid")
+                self.canvas.create_text(left - round(8 * scale), y, text=f"{value:g}" + (" ms" if index == 5 else ""),
+                                        font=theme.MONO_FONT, fill=theme.PAPER_MUTED, anchor="e", tags="grid")
+            self.grid_size = size
+        self.canvas.delete("trace")
+        if not self.points:
+            return
+        last = self.points[-1][0]
+        stride = (right - left) / max(1, self.points.maxlen - 1)
+        previous = None
+        for number, rtt, spike in self.points:
+            x = right - (last - number) * stride
+            if rtt is None:
+                y, size = upper + (lower - upper) * 0.06, 3 * scale
+                self.canvas.create_line(x - size, y - size, x + size, y + size, fill=theme.PAPER_BAD, tags="trace")
+                self.canvas.create_line(x - size, y + size, x + size, y - size, fill=theme.PAPER_BAD, tags="trace")
+                previous = None
+                continue
+            y = lower - (lower - upper) * rtt / top
+            if previous:
+                self.canvas.create_line(*previous, x, y, fill=theme.LIME, width=max(1, round(1.5 * scale)), tags="trace")
+            if spike or number == last:
+                radius = (3 if spike else 4) * scale
+                self.canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
+                                        fill=theme.PAPER_WARN if spike else theme.LIME, outline="", tags="trace")
+            previous = x, y
+        self.canvas.tag_lower("grid")

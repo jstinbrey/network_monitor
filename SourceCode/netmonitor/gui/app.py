@@ -1,5 +1,8 @@
 """Main application window: a sidebar on the left and one view at a time on the right. Signing in is optional."""
+from collections import deque
 from datetime import datetime
+from time import monotonic
+import tkinter as tk
 
 import customtkinter as ctk
 
@@ -45,6 +48,9 @@ class App(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.protocol("WM_DELETE_WINDOW", self.close)
+        self.bind("<Escape>", self._escape_drawer, add="+")
+        self.bind("<Tab>", self._drawer_tab, add="+")
+        self.bind("<Shift-Tab>", self._drawer_tab, add="+")
 
         self.user = self.main = self.panel = self.current = self.login = None
         self.start(None)                              # signing in is optional: everyone starts as a guest
@@ -58,6 +64,7 @@ class App(ctk.CTk):
         if self.main is not None:                     # replacing the guest window after a sign-in
             self._close_main()
         self.user, self.panel = user, None
+        self.bandwidth_samples = deque(maxlen=config.BW_WINDOW_S)
         self.main = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
         self.main.grid(row=0, column=0, sticky="nsew")
         self.main.grid_columnconfigure(1, weight=1)   # the view stretches, the sidebar does not
@@ -66,9 +73,7 @@ class App(ctk.CTk):
         sidebar = self._sidebar(user)
         self.watch_switches, self._watch_job, self._watch_busy = [], None, False   # views add their switches
         self.views = {}
-        for name, view_class in VIEWS + (ADMIN_VIEWS if self.is_admin else []):
-            self.views[name] = view_class(self.main, self)
-            self.views[name].grid(row=1, column=1, sticky="nsew")
+        self.view_types = dict(VIEWS + (ADMIN_VIEWS if self.is_admin else []))
         self.buttons = self._nav(sidebar)
         self.alert_bar = AlertBar(self.main, on_view=self.open_device, on_dismiss=self._dismiss)
         self.alert_bar.grid(row=0, column=1, sticky="ew", padx=theme.PAD, pady=(12, 0))
@@ -85,13 +90,13 @@ class App(ctk.CTk):
         sidebar.pack_propagate(False)
         brand = ctk.CTkFrame(sidebar, fg_color="transparent")
         brand.pack(fill="x", padx=16, pady=(16, 12))
-        ctk.CTkLabel(brand, text="", image=theme.icon("ping", theme.INK, 18), fg_color=theme.LIME, corner_radius=10,
+        ctk.CTkLabel(brand, text="", image=theme.icon("ping", theme.ON_LIME, 18), fg_color=theme.LIME, corner_radius=10,
                      width=32, height=32).pack(side="left")
         ctk.CTkLabel(brand, text=config.APP_TITLE, font=theme.CARD_FONT).pack(side="left", padx=10)
         if user:   # who is signed in, with Sign out beside it
             account = ctk.CTkFrame(sidebar, fg_color=theme.SUBTLE, corner_radius=12)
             account.pack(fill="x", padx=8)
-            ctk.CTkLabel(account, text=user.username[:1].upper(), text_color=theme.LIME, fg_color=theme.INK,
+            ctk.CTkLabel(account, text=user.username[:1].upper(), text_color=theme.LIME_ON_INK, fg_color=theme.INK,
                          corner_radius=14, width=28, height=28, font=theme.CAPTION_FONT).pack(side="left", padx=6, pady=6)
             theme.ActionButton(account, text="", image=theme.icon("log-out", theme.TEXT_2, 16), width=28, height=28,
                           command=self.sign_out, **theme.GHOST).pack(side="right", padx=6)
@@ -115,7 +120,7 @@ class App(ctk.CTk):
         """One button per view, grouped; only the groups this user may open."""
         buttons = {}
         for group, items in NAV_GROUPS:
-            items = [(name, icon) for name, icon in items if name in self.views]
+            items = [(name, icon) for name, icon in items if name in self.view_types]
             if not items:
                 continue
             ctk.CTkLabel(sidebar, text=group, text_color=theme.MUTED, font=theme.CAPTION_FONT, anchor="w",
@@ -128,15 +133,22 @@ class App(ctk.CTk):
         return buttons
 
     def show(self, name, **kwargs):
-        """Bring a view to the front, highlight its sidebar button, and let it refresh."""
+        """Mount only the active view while retaining the state of views already visited."""
+        if name not in self.views:
+            self.views[name] = self.view_types[name](self.main, self)
+        if self.current and self.current != name:
+            self.close_device(restore_focus=False)
+            self.views[self.current].grid_remove()
         self.current = name
         for key, button in self.buttons.items():
             on = key == name
             button.configure(fg_color=theme.INK if on else "transparent", hover_color=theme.INK if on else theme.SUBTLE,
-                             text_color=theme.SURFACE if on else theme.TEXT_2,
-                             image=theme.icon(ICONS[key], theme.LIME if on else theme.TEXT_2))
-        self.views[name].tkraise()
-        self.views[name].on_show(**kwargs)
+                             text_color=theme.ON_INK if on else theme.TEXT_2,
+                             image=theme.icon(ICONS[key], theme.LIME_ON_INK if on else theme.TEXT_2))
+        view = self.views[name]
+        view.grid(row=1, column=1, sticky="nsew")
+        view.focus_set()
+        view.on_show(**kwargs)
 
     def _show_network(self, result):
         link, note = result
@@ -150,7 +162,9 @@ class App(ctk.CTk):
         sample = services.bandwidth_sample()     # reads two counters: no network traffic, about 5 ms
         if sample:
             self.rates.configure(text=f"↓ {sample.down_mbps:.1f}   ↑ {sample.up_mbps:.1f} Mbps")
-            self.views["Connection"].add_sample(sample)
+            self.bandwidth_samples.append((monotonic(), sample))
+            if self.current == "Connection":
+                self.views["Connection"].redraw_bandwidth()
             for detail in sample.alerts:         # storing one works out the network id (about 0.2 s): a worker does it
                 run_async(services.record_event, "bandwidth", "warning", None, None, detail, on_done=self.alert)
         self._bw_ticks += 1
@@ -167,7 +181,9 @@ class App(ctk.CTk):
             return button
         if not self.is_admin:
             return None
-        switch = ctk.CTkSwitch(parent, text="Watch", command=lambda: self.set_watch(bool(switch.get())))
+        switch = theme.Switch(parent, text="Watch", command=lambda: self.set_watch(bool(switch.get())))
+        if self._watch_job:
+            switch.select()
         switch.pack(side="right")
         self.watch_switches.append(switch)
         return switch
@@ -207,17 +223,52 @@ class App(ctk.CTk):
         """A new event: show it in the alert bar and in the Dashboard's list."""
         if self.main:                             # not signed out while it was being stored
             self.alert_bar.show(event)
-            self.views["Dashboard"].load_alerts()
+            self._refresh_dashboard_alerts()
 
     def _dismiss(self, event_id):
-        run_async(services.dismiss, event_id, on_done=lambda _: self.views["Dashboard"].load_alerts())
+        run_async(services.dismiss, event_id, on_done=self._refresh_dashboard_alerts)
+
+    def _refresh_dashboard_alerts(self, _result=None):
+        if self.main and (dashboard := self.views.get("Dashboard")):
+            dashboard.load_alerts()
 
     def open_device(self, ip):
-        """One device panel for the whole app: made on first use, then reused."""
+        """Open the selected host in the drawer over the current view."""
         if self.panel is None:
             self.panel = DevicePanel(self.main, self)
+        if not self.panel.ip:
+            self._device_focus = self.focus_get()
         self.panel.show(ip)
+        if self.current == "Devices":
+            self.views["Devices"].table.show_open(ip)
         return self.panel
+
+    def close_device(self, restore_focus=True):
+        """Dismiss the drawer and return keyboard focus to the caller."""
+        if not self.panel or not self.panel.ip:
+            return
+        self.panel.hide()
+        if self.current == "Devices":
+            self.views["Devices"].table.show_open()
+        if restore_focus:
+            target = self._device_focus
+            if not (target and target.winfo_exists() and target.winfo_viewable()):
+                target = self.views[self.current]
+            tk.Misc.focus_set(target)
+        self._device_focus = None
+
+    def _escape_drawer(self, event):
+        if self.panel and self.panel.ip:
+            self.close_device()
+            return "break"
+
+    def _drawer_tab(self, event):
+        if self.panel and self.panel.ip and str(event.widget).startswith(f"{self.panel}."):
+            previous = bool(event.state & 1)
+            target = event.widget.tk_focusPrev() if previous else event.widget.tk_focusNext()
+            if target and not str(target).startswith(f"{self.panel}."):
+                self.panel.focus_last() if previous else self.panel.focus_first()
+                return "break"
 
     def ask_login(self, title="Sign in as administrator", description=None, submit="Sign in", action=None, **view_options):
         """Keep the current view visible and run a pending action only after administrator sign-in."""
@@ -225,6 +276,7 @@ class App(ctk.CTk):
             self.login.lift()
             return
         view = self.current
+        self._login_focus = self.focus_get()
 
         def signed_in(user):
             self.cancel_login()
@@ -245,6 +297,11 @@ class App(ctk.CTk):
         if self.login:
             self.login.destroy()
             self.login = None
+            target, self._login_focus = self._login_focus, None
+            if not (target and target.winfo_exists() and target.winfo_viewable()):
+                target = self.views.get(self.current)
+            if target:
+                tk.Misc.focus_set(target)
 
     def _close_main(self):
         """Stop the timers and anything still running, then throw the views away."""

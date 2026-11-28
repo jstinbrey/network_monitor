@@ -8,8 +8,8 @@ from netmonitor.gui.worker import run_async
 
 FILTERS = ["All", "Online", "New", "Issues"]
 UP = {models.ONLINE, models.DEGRADED, models.NO_ICMP}      # the latest ping test found the host up
-LEGEND = [("●", theme.GREEN, "Online"), ("●", theme.AMBER, "Degraded or no ICMP"), ("●", theme.RED, "Offline"),
-          ("●", theme.MUTED, "Not pinged"), ("◯", theme.RED, "New device"), ("!", theme.RED, "Finding")]
+LEGEND = [("●", theme.GREEN, "Online"), ("●", theme.AMBER, "Slow or no ping reply"), ("●", theme.RED, "Offline"),
+          ("●", theme.MUTED, "Not pinged"), ("◯", theme.BLUE, "New device"), ("!", theme.RED, "Finding")]
 
 
 def keep(devices, stats, issues, mode):
@@ -24,44 +24,68 @@ class MapView(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="transparent")
         self.app, self.data = app, ([], {}, set())       # the latest map_data(), redrawn when the filter changes
-        ctk.CTkLabel(self, text="Map", font=theme.TITLE_FONT).pack(anchor="w", padx=theme.PAD, pady=(theme.PAD, 8))
-
-        bar = ctk.CTkFrame(self, fg_color="transparent")
-        bar.pack(fill="x", padx=theme.PAD)
-        self.refresh_button = ctk.CTkButton(bar, text="Re-test devices", width=126, command=self.refresh)
-        self.refresh_button.pack(side="left")
+        actions, self.verdict = theme.page_heading(self, "Map", "Devices connected through your gateway")
+        self.filter_name = "All"
         self.scan_state = "normal" if app.is_admin or not app.user else "disabled"
-        self.scan_button = (ctk.CTkButton(bar, text="Scan network", width=146, height=40, corner_radius=20,
-                                          state=self.scan_state, **theme.PRIMARY, command=self.scan) if app.user else
-                            theme.locked_button(bar, "Scan network", app.ask_scan, width=146))
-        self.scan_button.pack(side="left", padx=8)
-        self.filter = ctk.CTkSegmentedButton(bar, values=FILTERS, command=lambda mode: self._redraw())
-        self.filter.set("All")
-        self.filter.pack(side="left", padx=8)
-        self.status = ctk.CTkLabel(bar, text="", text_color=theme.MUTED)
-        self.status.pack(side="left", padx=8)
+        self.scan_button = (theme.ActionButton(actions, text="Scan network", width=146, height=40, corner_radius=20,
+                                               image=theme.icon("radar", theme.ON_INK), state=self.scan_state,
+                                               **theme.PRIMARY, command=self.scan) if app.user else
+                            theme.locked_button(actions, "Scan network", app.ask_scan, width=146))
+        self.scan_button.pack(side="right")
+        self.refresh_button = theme.ActionButton(actions, text="Re-test devices", width=150, height=40, corner_radius=20,
+                                                 image=theme.icon("refresh", size=16), command=self.refresh)
+        self.refresh_button.pack(side="right", padx=(0, 8))
+        filters = ctk.CTkFrame(self, fg_color="transparent")
+        filters.pack(fill="x", padx=theme.PAD, pady=(0, 12))
+        self.filters = {}
+        for name in FILTERS:
+            self.filters[name] = theme.ActionButton(filters, text=name, width=78, height=36, corner_radius=18,
+                                                     command=lambda value=name: self._filter(value))
+            self.filters[name].pack(side="left", padx=(0, 8))
+        card = ctk.CTkFrame(self, fg_color=theme.SURFACE)
+        card.pack(fill="both", expand=True, padx=theme.PAD, pady=(0, 12))
+        self.legend = ctk.CTkFrame(card, fg_color="transparent")
+        self.legend.pack(side="bottom", fill="x", padx=16, pady=(4, 10))
+        for i, (mark, color, label) in enumerate(LEGEND):
+            row, column = divmod(i, 3)
+            self.legend.grid_columnconfigure(column, weight=1)
+            chip = ctk.CTkFrame(self.legend, fg_color="transparent")
+            chip.grid(row=row, column=column, sticky="ew")
+            ctk.CTkLabel(chip, text=mark, text_color=color, font=theme.CARD_FONT).pack(side="left")
+            ctk.CTkLabel(chip, text=label, text_color=theme.MUTED).pack(side="left", padx=(4, 8))
+        self.selection = theme.WrappedLabel(card, text="", text_color=theme.TEXT_2, font=theme.CAPTION_FONT)
+        self.selection.pack(side="bottom", fill="x", padx=16)
+        self._describe_selection(())
 
-        footer = ctk.CTkFrame(self, fg_color="transparent")     # packed before the canvas, so it keeps its room
-        footer.pack(side="bottom", fill="x", padx=theme.PAD, pady=(6, theme.PAD))
-        self.verdict = ctk.CTkLabel(footer, text="", font=theme.CARD_FONT, anchor="w")
-        self.verdict.pack(side="left")
-        for mark, color, label in reversed(LEGEND):
-            ctk.CTkLabel(footer, text=label, text_color=theme.MUTED).pack(side="right", padx=(2, 10))
-            ctk.CTkLabel(footer, text=mark, text_color=color, font=theme.CARD_FONT).pack(side="right")
-        ctk.CTkLabel(self, text="Logical map: every device reaches the internet through the gateway. Switches and "
-                                "access points are not shown. Drag a device, drag the background to pan, scroll to "
-                                "zoom, click for details, right-click for actions.",
-                     text_color=theme.MUTED, anchor="w", justify="left", wraplength=900
-                     ).pack(side="bottom", fill="x", padx=theme.PAD)
-
-        self.canvas = MapCanvas(self, on_open=app.open_device, menu_items=[
+        graph = ctk.CTkFrame(card, fg_color=theme.SURFACE)
+        graph.pack(fill="both", expand=True, padx=12, pady=8)
+        self.canvas = MapCanvas(graph, on_open=app.open_device, on_select=self._describe_selection, menu_items=[
             ("Ping", lambda ip: app.show("Ping", ip=ip)),
             ("Continuous ping", lambda ip: app.show("Ping", ip=ip, continuous=True)),
             ("Traceroute", lambda ip: app.show("Traceroute", ip=ip)),
             ("Check ports" if app.is_admin else "Check ports (Admin)",
              self._check_ports if app.is_admin or not app.user else None),
         ])
-        self.canvas.pack(fill="both", expand=True, padx=theme.PAD, pady=8)
+        self.canvas.pack(fill="both", expand=True)
+        zoom = ctk.CTkFrame(graph, fg_color=theme.SURFACE, border_width=1, border_color=theme.BORDER, corner_radius=18)
+        zoom.place(relx=1, rely=1, x=-12, y=-12, anchor="se")
+        for icon, label, action in (("plus", "Zoom in", lambda: self.canvas.zoom(1.15)),
+                                     ("minus", "Zoom out", lambda: self.canvas.zoom(1 / 1.15)),
+                                     ("fit", "Fit devices", self.canvas.fit)):
+            button = theme.ActionButton(zoom, text="", image=theme.icon(icon, size=16), width=30, height=30,
+                                        corner_radius=15, command=action, **theme.GHOST)
+            button.pack(padx=4, pady=2)
+            theme.tooltip(button, label)
+        self._redraw()
+
+    def _filter(self, value):
+        self.filter_name = value
+        self._redraw()
+
+    def _describe_selection(self, details):
+        self.selection.configure(text=" · ".join(details) if details else
+                                 "Use arrow keys to select a device, Enter for details, or Shift+F10 for actions. "
+                                 "Scroll to zoom or drag to pan.")
 
     def _check_ports(self, ip):
         """The device panel runs the check and shows the open ports."""
@@ -84,7 +108,7 @@ class MapView(ctk.CTkFrame):
     def _load(self, update, message):
         for button in (self.refresh_button, self.scan_button):
             button.configure(state="disabled")
-        self.status.configure(text=message, text_color=theme.MUTED)
+        self.verdict.configure(text=message, text_color=theme.MUTED)
         run_async(services.map_data, update, on_done=self._show, on_error=self._show_error)
 
     def _show(self, data):
@@ -92,17 +116,23 @@ class MapView(ctk.CTkFrame):
             return
         self.data = data
         self._ready()
-        self.status.configure(text="")
         self._redraw()
 
     def _redraw(self):
         devices, stats, issues = self.data
-        self.canvas.draw(keep(devices, stats, issues, self.filter.get()), stats, issues)
+        self.canvas.draw(keep(devices, stats, issues, self.filter_name), stats, issues)
         new = sum(not d.known for d in devices)
         found = len(issues & {d.ip for d in devices})
+        counts = {"All": len(devices), "Online": sum(s.status in UP for s in stats.values()),
+                  "New": new, "Issues": found}
+        for name, button in self.filters.items():
+            style = theme.PRIMARY if name == self.filter_name else dict(
+                fg_color=theme.SURFACE, hover_color=theme.SUBTLE, text_color=theme.TEXT, border_width=1)
+            button.configure(text=f"{name}  {counts[name]}", **style)
         self.verdict.configure(
-            text=f"{len(devices)} devices  ·  {new} new  ·  {found} with findings" if devices else "",
-            text_color=theme.RED if found else theme.AMBER if new else theme.GREEN)
+            text=f"{len(devices)} devices · {new} new · {found} with findings" if devices else
+                 "Devices connected through your gateway",
+            text_color=theme.MUTED)
 
     def _ready(self):
         self.refresh_button.configure(state="normal")
@@ -111,4 +141,4 @@ class MapView(ctk.CTkFrame):
     def _show_error(self, error):
         if self.winfo_exists():
             self._ready()
-            self.status.configure(text=str(error), text_color=theme.RED)
+            self.verdict.configure(text=str(error), text_color=theme.RED)

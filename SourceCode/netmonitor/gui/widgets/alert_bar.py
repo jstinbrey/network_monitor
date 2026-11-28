@@ -10,9 +10,9 @@ class AlertBar(ctk.CTkFrame):
         """on_view(ip) opens a device panel; on_dismiss(event_id) marks the event as seen."""
         super().__init__(parent, corner_radius=12)
         self.event, self.on_dismiss = None, on_dismiss
-        self.dismiss_button = ctk.CTkButton(self, text="Dismiss", width=80, command=self.dismiss, **theme.GHOST)
+        self.dismiss_button = theme.ActionButton(self, text="Dismiss", width=80, command=self.dismiss, **theme.GHOST)
         self.dismiss_button.pack(side="right", padx=(0, 8), pady=8)
-        self.view_button = ctk.CTkButton(self, text="View", width=70, command=lambda: on_view(self.event.ip))
+        self.view_button = theme.ActionButton(self, text="View", width=70, command=lambda: on_view(self.event.ip))
         self.text = ctk.CTkLabel(self, text="", anchor="w", font=theme.BODY_FONT)
         self.text.pack(side="left", fill="x", expand=True, padx=14)
 

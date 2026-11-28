@@ -124,6 +124,7 @@ class DeviceDetail:
     open_ports: list[dict] | None = None                      # the latest port check; None: never checked
     presence: list[tuple[str, bool]] = field(default_factory=list)   # watch-mode checks in the last 24 h: (at, up)
     uptime_pct: float | None = None                            # up checks / all checks; None: never watched
+    baseline_ms: float | None = None                          # mean of the stored replies before the latest test
 
 
 @dataclass

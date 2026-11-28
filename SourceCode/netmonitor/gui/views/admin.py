@@ -1,4 +1,5 @@
 """Admin view: user accounts and stored history. The window builds it only for administrators."""
+import tkinter as tk
 from tkinter import messagebox, ttk
 
 import customtkinter as ctk
@@ -9,7 +10,6 @@ from netmonitor.gui.views.login import clear
 from netmonitor.gui.worker import run_async
 
 ROLES = {"User": models.USER, "Admin": models.ADMIN}   # segmented-button label -> stored role
-FORM_WIDTH = 260
 LIMITS = {"bw_down_mbps": "Download limit (Mbps)", "bw_up_mbps": "Upload limit (Mbps)", "bw_daily_gb": "Daily cap (GB)",
           "watch_min": "Watch every (minutes)"}
 
@@ -18,77 +18,166 @@ class AdminView(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="transparent")
         self.app = app
-        ctk.CTkLabel(self, text="Admin", font=theme.TITLE_FONT).pack(anchor="w", padx=theme.PAD, pady=(theme.PAD, 8))
-        tabs = ctk.CTkTabview(self, anchor="nw")
-        tabs.pack(fill="both", expand=True, padx=theme.PAD, pady=(0, theme.PAD))
-
-        # --- Users tab: the accounts on the left, the form and actions on the right.
-        users = tabs.add("Users")
-        form = ctk.CTkFrame(users, fg_color="transparent", width=FORM_WIDTH)
-        form.pack(side="right", fill="y", padx=(12, 0))
-        self.table = ttk.Treeview(users, columns=("username", "role"), show="headings", selectmode="browse")
+        theme.page_heading(self, "Admin", "Accounts, alert limits, and stored history")
+        content = ctk.CTkScrollableFrame(self, fg_color="transparent", corner_radius=0)
+        content.pack(fill="both", expand=True, padx=(theme.PAD, 4), pady=(0, 12))
+        content.grid_columnconfigure(0, weight=5, uniform="admin")
+        content.grid_columnconfigure(1, weight=3, uniform="admin")
+        users = ctk.CTkFrame(content, fg_color=theme.SURFACE)
+        users.grid(row=0, column=0, sticky="new", padx=(0, 16))
+        account_header = ctk.CTkFrame(users, fg_color="transparent")
+        account_header.pack(fill="x", padx=20, pady=(16, 8))
+        theme.ActionButton(account_header, text="Add account", width=118, height=36, corner_radius=18,
+                           image=theme.icon("plus", size=14), command=self._show_form).pack(side="right", padx=(8, 0))
+        ctk.CTkLabel(account_header, text="Accounts", font=theme.CARD_FONT, anchor="w").pack(fill="x")
+        theme.WrappedLabel(users, text="Administrators manage the network. Users and guests can view and test it.",
+                           text_color=theme.MUTED, font=theme.CAPTION_FONT).pack(fill="x", padx=20, pady=(0, 10))
+        listing = ctk.CTkFrame(users, fg_color="transparent")
+        listing.pack(fill="x", padx=20)
+        self.table = ttk.Treeview(listing, columns=("username", "role"), show="headings", selectmode="browse", height=4)
         for key, title in (("username", "Username"), ("role", "Role")):
             self.table.heading(key, text=title, anchor="w")
-        self.table.pack(side="left", fill="both", expand=True)
+            self.table.column(key, width=130, anchor="w")
+        scrollbar = ctk.CTkScrollbar(listing, height=1, command=self.table.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.table.configure(yscrollcommand=scrollbar.set)
+        self.table.pack(side="left", fill="x", expand=True)
+        bar = ctk.CTkFrame(users, fg_color="transparent")
+        bar.pack(fill="x", padx=20, pady=(8, 4))
+        self.account_menu = tk.Menu(self, tearoff=False)
+        theme.ActionButton(bar, text="Account actions", width=130, height=32, corner_radius=16,
+                           image=theme.icon("more", size=14), command=self._account_actions).pack(side="left")
+        self.table.bind("<Shift-F10>", self._account_actions)
+        self.table.bind("<Menu>", self._account_actions)
+        self.table.bind("<Button-3>", self._account_actions)
 
-        self.username = ctk.CTkEntry(form, width=FORM_WIDTH, placeholder_text="Username (for Add user)")
-        self.password = ctk.CTkEntry(form, width=FORM_WIDTH, placeholder_text="Password", show="•")
-        self.confirm = ctk.CTkEntry(form, width=FORM_WIDTH, placeholder_text="Confirm password", show="•")
-        self.role = ctk.CTkSegmentedButton(form, values=list(ROLES))
+        self.form = form = ctk.CTkFrame(users, fg_color=theme.SUBTLE, corner_radius=12)
+        self.form.pack(fill="x", padx=20, pady=(4, 12))
+        self.form_title = ctk.CTkLabel(form, text="New account", font=theme.CARD_FONT, anchor="w")
+        self.form_title.pack(fill="x", padx=12, pady=(8, 4))
+        fields = ctk.CTkFrame(form, fg_color="transparent")
+        fields.pack(fill="x", padx=12, pady=(0, 8))
+        self.username = ctk.CTkEntry(fields, width=95, height=36)
+        self.password = ctk.CTkEntry(fields, width=95, height=36, show="•")
+        self.confirm = ctk.CTkEntry(fields, width=95, height=36, show="•")
+        for column, (label, widget) in enumerate(zip(("Username", "Password", "Confirm password"),
+                                                      (self.username, self.password, self.confirm))):
+            fields.grid_columnconfigure(column, weight=1, uniform="account")
+            ctk.CTkLabel(fields, text=label, font=theme.CAPTION_FONT, text_color=theme.MUTED).grid(
+                row=0, column=column, sticky="w", padx=(0, 4))
+            widget.grid(row=1, column=column, sticky="ew", padx=(0, 6 if column < 2 else 0))
+        self.role = theme.SegmentedButton(form, values=list(ROLES))
         self.role.set("User")
-        for widget in (self.username, self.password, self.confirm, self.role):
-            widget.pack(fill="x", pady=(0, 8))
-        for text, command in (("Add user", self.add_user), ("Reset password of selected", self.reset_password),
-                              ("Set role of selected", self.set_role)):
-            ctk.CTkButton(form, text=text, command=command).pack(fill="x", pady=(0, 8))
-        ctk.CTkButton(form, text="Delete selected", **theme.DANGER,
-                      command=self.delete_user).pack(fill="x", pady=(0, 8))
-        self.status = ctk.CTkLabel(form, text="", wraplength=FORM_WIDTH, justify="left", anchor="w")
-        self.status.pack(fill="x")
+        self.role.pack(anchor="w", padx=12, pady=(0, 8))
+        form_actions = ctk.CTkFrame(form, fg_color="transparent")
+        form_actions.pack(fill="x", padx=12, pady=(2, 10))
+        self.account_submit = theme.ActionButton(form_actions, text="Create account", height=38, corner_radius=19,
+                                                  command=self.add_user, **theme.PRIMARY)
+        self.account_submit.pack(side="right")
+        theme.ActionButton(form_actions, text="Cancel", width=70, height=38, corner_radius=19,
+                           command=self._clear_form).pack(side="right", padx=(0, 8))
+        self.status = theme.WrappedLabel(users, text="", text_color=theme.MUTED, font=theme.CAPTION_FONT)
+        self.status.pack(fill="x", padx=20, pady=(0, 8))
 
-        # --- Settings tab: bandwidth limits and the watch interval, then clearing history.
-        settings = tabs.add("Settings")
-        ctk.CTkLabel(settings, text="Limits and watch mode", font=theme.CARD_FONT).pack(anchor="w")
-        ctk.CTkLabel(settings, text_color=theme.MUTED, justify="left", anchor="w",
-                     text=f"0 means no limit. A rate above its limit for {config.BW_SUSTAIN_S} s raises an alert, "
-                          "and so do 80% and 100% of the daily cap.\n"
-                          "Watch mode scans this often while its switch is on (Dashboard or Devices)."
-                     ).pack(anchor="w", pady=(2, 8))
+        side = ctk.CTkFrame(content, fg_color="transparent")
+        side.grid(row=0, column=1, sticky="new")
+        settings = ctk.CTkFrame(side, fg_color=theme.SURFACE)
+        settings.pack(fill="x", pady=(0, 16))
+        ctk.CTkLabel(settings, text="Alerts and watch mode", font=theme.CARD_FONT).pack(anchor="w", padx=20, pady=(16, 0))
+        theme.WrappedLabel(settings, text=f"0 means no limit. A rate above its limit for {config.BW_SUSTAIN_S} s "
+                                          "raises an alert.", text_color=theme.MUTED, font=theme.CAPTION_FONT).pack(
+            fill="x", padx=20, pady=(2, 6))
         form = ctk.CTkFrame(settings, fg_color="transparent")
-        form.pack(anchor="w")
-        self.limits = {}
+        form.pack(fill="x", padx=20)
+        form.grid_columnconfigure(0, weight=1)
+        self.limits, self.defaults = {}, {}
+        self.saving = False
         for row, (key, label) in enumerate(LIMITS.items()):
-            ctk.CTkLabel(form, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 12), pady=3)
-            self.limits[key] = ctk.CTkEntry(form, width=100)
-            self.limits[key].grid(row=row, column=1, pady=3)
-        ctk.CTkButton(settings, text="Save settings", command=self.save_limits, **theme.PRIMARY).pack(anchor="w", pady=(8, 0))
-        self.limits_status = ctk.CTkLabel(settings, text="", anchor="w")
-        self.limits_status.pack(anchor="w", pady=(4, 16))
+            theme.WrappedLabel(form, text=label, font=theme.CAPTION_FONT).grid(
+                row=row, column=0, sticky="ew", padx=(0, 6), pady=3)
+            self.limits[key] = tk.StringVar()
+            entry = ctk.CTkEntry(form, width=60, height=36, textvariable=self.limits[key], justify="right")
+            entry.grid(row=row, column=1, pady=3)
+        self.save_button = theme.ActionButton(settings, text="Save settings", height=38, corner_radius=19,
+                                              state="disabled", command=self.save_limits, **theme.PRIMARY)
+        self.save_button.pack(anchor="w", padx=20, pady=(8, 0))
+        for variable in self.limits.values():
+            variable.trace_add("write", self._settings_changed)
+        self.limits_status = theme.WrappedLabel(settings, text="", font=theme.CAPTION_FONT)
+        self.limits_status.pack(fill="x", padx=20, pady=(2, 6))
 
-        ctk.CTkLabel(settings, text="Clear history for this network", font=theme.CARD_FONT).pack(anchor="w")
-        ctk.CTkLabel(settings, text_color=theme.MUTED, justify="left", anchor="w",
-                     text="Deletes the devices, ping results and alerts stored for the network this PC is on now.\n"
-                          "Accounts and the history of other networks are kept.").pack(anchor="w", pady=(2, 8))
-        ctk.CTkButton(settings, text="Clear history", **theme.DANGER,
-                      command=self.clear_history).pack(anchor="w")
-        self.settings_status = ctk.CTkLabel(settings, text="", anchor="w")
-        self.settings_status.pack(anchor="w", pady=8)
+        history = ctk.CTkFrame(side, fg_color=theme.SURFACE)
+        history.pack(fill="x")
+        ctk.CTkLabel(history, text="Stored history", font=theme.CARD_FONT).pack(anchor="w", padx=20, pady=(16, 0))
+        theme.WrappedLabel(history, text="Clear saved devices, ping results, and alerts for the current network. "
+                           "Accounts and other networks stay.", text_color=theme.MUTED,
+                           font=theme.CAPTION_FONT).pack(fill="x", padx=20, pady=(2, 8))
+        theme.ActionButton(history, text="Clear history…", height=38, corner_radius=19,
+                           image=theme.icon("trash", theme.RED, 14), command=self.clear_history,
+                           **theme.DANGER).pack(anchor="w", padx=20)
+        self.settings_status = theme.WrappedLabel(history, text="", font=theme.CAPTION_FONT)
+        self.settings_status.pack(fill="x", padx=20, pady=(2, 6))
+
+    def _show_form(self, reset=False):
+        self.form_title.configure(text="Reset password for selected account" if reset else "New account")
+        self.account_submit.configure(text="Reset password" if reset else "Create account",
+                                      command=self.reset_password if reset else self.add_user)
+        (self.password if reset else self.username).focus_set()
+
+    def _clear_form(self):
+        clear(self.username, self.password, self.confirm)
+        self._show_form()
+
+    def _account_actions(self, event=None):
+        if event and event.num == 3 and (row := self.table.identify_row(event.y)):
+            self.table.selection_set(row)
+            self.table.focus(row)
+        if not self._selected():
+            return "break"
+        self.account_menu.configure(background=theme.color(theme.SURFACE), foreground=theme.color(theme.TEXT))
+        self.account_menu.delete(0, "end")
+        self.account_menu.add_command(label="Reset password…", command=lambda: self._show_form(reset=True))
+        self.account_menu.add_command(label="Apply selected role", command=self.set_role)
+        self.account_menu.add_separator()
+        self.account_menu.add_command(label="Delete account…", command=self.delete_user)
+        x = event.x_root if event and event.num == 3 else self.table.winfo_rootx() + 12
+        y = event.y_root if event and event.num == 3 else self.table.winfo_rooty() + 32
+        try:
+            self.account_menu.tk_popup(x, y)
+        finally:
+            self.account_menu.grab_release()
+        return "break"
 
     def on_show(self):
         run_async(services.users, on_done=self._show_users, on_error=self._show_error)
         run_async(services.settings, on_done=self._show_limits)
 
     def _show_limits(self, values):
-        for key, entry in self.limits.items():
-            entry.delete(0, "end")
-            entry.insert(0, f"{values[key]:g}")
+        self.defaults = {key: f"{values[key]:g}" for key in self.limits}
+        for key, variable in self.limits.items():
+            variable.set(self.defaults[key])
+        self._settings_changed()
+
+    def _settings_changed(self, *_args):
+        current = {key: variable.get() for key, variable in self.limits.items()}
+        self.save_button.configure(state="normal" if self.defaults and not self.saving and
+                                   current != self.defaults else "disabled")
 
     def save_limits(self):
+        if self.save_button.cget("state") == "disabled":
+            return
+        self.saving = True
+        self._settings_changed()
         def saved(values):
+            self.saving = False
             self._show_limits(values)
             self.limits_status.configure(text="Settings saved.", text_color=theme.GREEN)
-        run_async(services.save_settings, {key: entry.get() for key, entry in self.limits.items()}, on_done=saved,
-                  on_error=lambda error: self.limits_status.configure(text=str(error), text_color=theme.RED))
+        def failed(error):
+            self.saving = False
+            self._settings_changed()
+            self.limits_status.configure(text=str(error), text_color=theme.RED)
+        run_async(services.save_settings, {key: variable.get() for key, variable in self.limits.items()},
+                  on_done=saved, on_error=failed)
 
     def _show_users(self, users):
         self.table.delete(*self.table.get_children())

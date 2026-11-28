@@ -1,10 +1,13 @@
 """Tests for Step 8.1: the network map's layout, its filter, and the data behind it."""
+from itertools import combinations
+from math import dist
+
 import pytest
 
 from netmonitor import config, models, services, store
 from netmonitor.core import pinger
 from netmonitor.gui.views.map import keep
-from netmonitor.gui.widgets.map_canvas import edge_style, ring_layout
+from netmonitor.gui.widgets.map_canvas import edge_style, map_positions, ring_layout
 from netmonitor.models import Device, HostStats, NetworkInfo
 
 NETWORK = "192.168.1.0/24 via aa"
@@ -26,6 +29,13 @@ def test_ring_layout_starts_at_the_top_and_goes_clockwise():
 def test_more_than_16_devices_go_on_a_second_ring():
     radii = [round((x * x + y * y) ** 0.5) for x, y in ring_layout(20, 0, 0, 100)]
     assert radii == [100] * 16 + [190] * 4
+
+
+def test_dense_map_reserves_room_for_individual_nodes_at_the_minimum_window():
+    width, height = 740, 300
+    points = map_positions(18, width, height)
+    assert all(18 <= x <= width - 18 and 18 <= y <= height - 18 for x, y in points)
+    assert min(dist(a, b) for a, b in combinations(points, 2)) > 36
 
 
 def test_edge_colour_follows_latency():

@@ -1,4 +1,6 @@
 """Dashboard view with the network verdict, measurements, and findings."""
+from collections import Counter
+
 import customtkinter as ctk
 
 from netmonitor import services
@@ -12,6 +14,15 @@ CARDS = {"Devices": "devices", "Reachable": "check", "Average latency": "ping", 
 MAX_BARS = 15
 TOP_RECOMMENDATIONS = 3
 RECENT_ALERTS = 5
+
+
+def chart_device_labels(stats):
+    """Keep the distinguishing end of long names and fall back to IPs for duplicate labels."""
+    names = [s.hostname or s.ip for s in stats]
+    labels = [name if len(name) <= 15 else f"{name[:9]}…{name[-5:]}" for name in names]
+    counts = Counter(labels)
+    labels = [label if counts[label] == 1 else host.ip for host, label in zip(stats, labels)]
+    return labels if len(set(labels)) == len(labels) else [host.ip for host in stats]
 
 
 class DashboardView(ctk.CTkFrame):
@@ -74,8 +85,8 @@ class DashboardView(ctk.CTkFrame):
         chart_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         ctk.CTkLabel(chart_panel, text="Latency per device", font=theme.CARD_FONT, anchor="w").pack(
             fill="x", padx=16, pady=(12, 0))
-        ctk.CTkLabel(chart_panel, text="Average of stored replies · select a bar for device details",
-                     text_color=theme.MUTED, font=theme.CAPTION_FONT, anchor="w").pack(fill="x", padx=16)
+        self.chart_caption = theme.WrappedLabel(chart_panel, text="", text_color=theme.MUTED, font=theme.CAPTION_FONT)
+        self.chart_caption.pack(fill="x", padx=16)
         self.chart = LatencyChart(chart_panel, width=3.5, height=2)
         self.chart.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         attention = ctk.CTkFrame(middle)
@@ -132,7 +143,7 @@ class DashboardView(ctk.CTkFrame):
             text = f"{event.at[5:16].replace('T', ' ')}   {event.detail}"
             color = theme.MUTED if event.dismissed else SEVERITY_COLORS[event.severity]
             if event.ip:
-                ctk.CTkButton(self.alert_rows, text=text, anchor="w", fg_color=theme.SURFACE,
+                theme.ActionButton(self.alert_rows, text=text, anchor="w", fg_color=theme.SURFACE,
                               hover_color=theme.SUBTLE, text_color=color,
                               command=lambda ip=event.ip: self.app.open_device(ip)).pack(fill="x", pady=2)
             else:
@@ -204,9 +215,11 @@ class DashboardView(ctk.CTkFrame):
         self.captions["Wi-Fi signal"].configure(text=f"{link.quality} · {link.band}" if link else
                                                "Wired or offline" if note.startswith("Not on Wi-Fi") else "Unavailable")
 
-        replied = [s for s in stats if s.avg_ms is not None][:MAX_BARS]
-        labels = [s.hostname or s.ip for s in replied]
-        self.chart.plot([label if len(label) <= 14 else label[:13] + "…" for label in labels],
+        replies = [s for s in stats if s.avg_ms is not None]
+        replied = replies[:MAX_BARS]
+        caption = f"Showing {len(replied)} of {len(replies)} devices with replies · " if len(replies) > MAX_BARS else ""
+        self.chart_caption.configure(text=caption + "Average of stored replies · select a bar for details")
+        self.chart.plot(chart_device_labels(replied),
                         [s.avg_ms for s in replied], "" if replied else "No ping results yet",
                         on_pick=lambda i: self.app.open_device(replied[i].ip), distinct_labels=True)
         critical = [rec for rec in recommendations if rec.severity == "critical"]

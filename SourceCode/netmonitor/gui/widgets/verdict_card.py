@@ -89,8 +89,8 @@ class VerdictCard(ctk.CTkFrame):
             mark.master.configure(fg_color=theme.PAPER_GRID)
             mark.configure(text="–", image=None, text_color=theme.PAPER_MUTED)
         else:
-            background = theme.LIME if ok else theme.RED
-            foreground = theme.INK if ok else theme.SURFACE
+            background = theme.LIME if ok else theme.RED[0]
+            foreground = theme.ON_LIME if ok else theme.PAPER_TEXT
             mark.master.configure(fg_color=background)
             mark.configure(text="", image=theme.icon("check" if ok else "x", foreground, 15))
         label.configure(text=detail)

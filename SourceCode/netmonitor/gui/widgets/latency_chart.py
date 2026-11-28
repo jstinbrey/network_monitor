@@ -11,15 +11,17 @@ BACKGROUND, TEXT = theme.SURFACE, theme.TEXT_2
 class LatencyChart(ctk.CTkFrame):
     def __init__(self, parent, width=5, height=2.4):
         super().__init__(parent, fg_color=BACKGROUND)
-        self.figure = Figure(figsize=(width, height), dpi=100, facecolor=BACKGROUND)
+        self.figure = Figure(figsize=(width, height), dpi=100, facecolor=theme.color(BACKGROUND))
         self.axes = self.figure.add_subplot(111)
         self.canvas = FigureCanvasTkAgg(self.figure, master=self)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=4, pady=4)
-        self._bars, self._on_pick = [], None
+        self._bars, self._bar_colors, self._on_pick = [], [], None
+        self._baseline = None
         self.canvas.mpl_connect("pick_event", self._picked)   # connected once; plot() only swaps the bars
+        theme.appearance_callback(self, self._apply_palette)
         self.plot([], [], "Reply times")
 
-    def plot(self, labels, values, title, on_pick=None, unit="ms", distinct_labels=False):
+    def plot(self, labels, values, title, on_pick=None, unit="ms", distinct_labels=False, baseline=None):
         """Redraw the chart with one bar per label; values are in `unit` (the y-axis label).
 
         on_pick: when given, clicking a bar calls on_pick(index of that bar in labels).
@@ -28,22 +30,40 @@ class LatencyChart(ctk.CTkFrame):
         self.axes.clear()
         positions = range(len(labels)) if distinct_labels else labels
         self._bars = list(self.axes.bar(positions, values, width=0.35 if distinct_labels else 0.8,
-                                       color=theme.INK, picker=on_pick is not None))
+                                       color=theme.color(theme.INK), picker=on_pick is not None))
+        self._bar_colors = [theme.AMBER if baseline is not None and value > baseline else theme.INK for value in values]
+        self._baseline = self.axes.axhline(baseline, linestyle="--", linewidth=1) if baseline is not None else None
         if distinct_labels and labels:
-            self.axes.set_xticks(positions, labels, rotation=90 if len(labels) > 7 else 30, ha="right", fontsize=8)
+            sparse = "" in labels
+            rotation = 0 if sparse else 90 if len(labels) > 7 else 30
+            self.axes.set_xticks(positions, labels, rotation=rotation, ha="center" if sparse else "right", fontsize=8)
             self.axes.set_axisbelow(True)
-            self.axes.grid(axis="y", color=theme.BORDER)
+            self.axes.grid(axis="y", color=theme.color(theme.BORDER))
         self._on_pick = on_pick
-        self.axes.set_title(title, color=TEXT)
-        self.axes.set_ylabel(unit, color=TEXT)
-        self.axes.set_facecolor(BACKGROUND)
-        self.axes.tick_params(colors=TEXT)
+        self.axes.set_title(title)
+        self.axes.set_ylabel(unit)
         if not labels:
             self.axes.set_xticks([])
             self.axes.set_yticks([])
-        for spine in self.axes.spines.values():
-            spine.set_color(theme.BORDER)
+        self._apply_palette()
         self.figure.tight_layout()
+        self.canvas.draw_idle()
+
+    def _apply_palette(self, _mode=None):
+        background, text, border = map(theme.color, (BACKGROUND, TEXT, theme.BORDER))
+        self.figure.set_facecolor(background)
+        self.axes.set_facecolor(background)
+        self.axes.title.set_color(text)
+        self.axes.yaxis.label.set_color(text)
+        self.axes.tick_params(colors=text)
+        for line in self.axes.get_ygridlines():
+            line.set_color(border)
+        for spine in self.axes.spines.values():
+            spine.set_color(border)
+        for bar, token in zip(self._bars, self._bar_colors):
+            bar.set_facecolor(theme.color(token))
+        if self._baseline is not None:
+            self._baseline.set_color(theme.color(theme.GREEN))
         self.canvas.draw_idle()
 
     def _picked(self, event):

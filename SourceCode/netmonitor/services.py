@@ -204,6 +204,12 @@ def stats():
     return _stats(devices, network)
 
 
+def device_overview():
+    """Devices table rows and their stored measurements from the same network."""
+    network, devices = _current()
+    return devices, {host.ip: host for host in _stats(devices, network)}
+
+
 def refresh_all():
     """Feature 3: ping every known device, then return fresh statistics."""
     network, devices = _current()
@@ -224,8 +230,10 @@ def device_detail(ip):
     pings = store.get_pings(ip, network)
     since = (datetime.now() - timedelta(hours=24)).isoformat(timespec="seconds")
     presence = store.get_presence(network, device.mac, since) if device.mac else []
+    baseline = statistics.baseline([reply for test in pings[:-1] for reply in test.rtts_ms])
     return models.DeviceDetail(device, statistics.host_stats(device, pings), pings[-10:],
-                               store.get_port_checks(network).get(ip), presence, watch.uptime_pct(presence))
+                               store.get_port_checks(network).get(ip), presence, watch.uptime_pct(presence),
+                               baseline[0] if baseline else None)
 
 
 def set_alias(ip, name):

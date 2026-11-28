@@ -89,11 +89,12 @@ class DevicePanel(ctk.CTkToplevel):
         ctk.CTkButton(actions, text="Continuous ping", width=130,
                       command=self.continuous_ping).pack(side="left", padx=(8, 0))
         self.known_button = None
-        if app.is_admin:   # a User never gets these buttons, and services refuse the calls anyway
-            self.known_button = ctk.CTkButton(actions, text="Mark as known", width=130, command=self.mark_known)
+        if app.is_admin or not app.user:
+            button = ctk.CTkButton if app.is_admin else theme.locked_button
+            self.known_button = button(actions, text="Mark as known", width=138, command=self.mark_known)
             self.known_button.pack(side="left", padx=8)
-            ctk.CTkButton(actions, text="Rename", width=100, command=self.rename).pack(side="left")
-            ctk.CTkButton(actions, text="Check ports", width=110, command=self.check_ports).pack(side="left", padx=8)
+            button(actions, text="Rename", width=100, command=self.rename).pack(side="left")
+            button(actions, text="Check ports", width=124, command=self.check_ports).pack(side="left", padx=8)
             ctk.CTkLabel(self, text="Only check devices on a network you own or administer.",
                          text_color=theme.MUTED, anchor="w").pack(fill="x", padx=theme.PAD, pady=(4, 0))
         self.status = ctk.CTkLabel(self, text="", anchor="w", justify="left", wraplength=640)
@@ -170,9 +171,15 @@ class DevicePanel(ctk.CTkToplevel):
         self.app.show("Ping", ip=self.ip, continuous=True)
 
     def mark_known(self):
+        if not self.app.user:
+            self._ask_admin("mark this device as known", "Sign in and mark", DevicePanel.mark_known)
+            return
         run_async(services.mark_known, self.ip, on_done=lambda recs: self._load(), on_error=self._show_error)
 
     def check_ports(self):
+        if not self.app.user:
+            self._ask_admin("check ports", "Sign in and check", DevicePanel.check_ports)
+            return
         self.status.configure(text=f"Checking {len(config.COMMON_PORTS)} common ports on {self.ip}...",
                               text_color=theme.MUTED)
         run_async(services.check_ports, self.ip, on_done=self._ports_checked, on_error=self._show_error)
@@ -182,10 +189,19 @@ class DevicePanel(ctk.CTkToplevel):
         self._show(detail)
 
     def rename(self):
+        if not self.app.user:
+            self._ask_admin("rename this device", "Sign in and rename", DevicePanel.rename)
+            return
         dialog = ctk.CTkInputDialog(title="Rename device", text=f"Name for {self.ip}\n(leave empty to use its hostname):")
         name = dialog.get_input()           # None when the dialog was cancelled
         if name is not None:
             run_async(services.set_alias, self.ip, name, on_done=self._show, on_error=self._show_error)
+
+    def _ask_admin(self, action, submit, callback):
+        ip = self.ip
+        app = self.app
+        app.ask_login(f"Sign in to {action}", f"An administrator account is required for this action on {ip}.",
+                      submit, lambda: callback(app.open_device(ip)))
 
     def _show_error(self, error):
         self.status.configure(text=str(error), text_color=theme.RED)

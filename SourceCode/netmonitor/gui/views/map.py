@@ -28,11 +28,12 @@ class MapView(ctk.CTkFrame):
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD)
-        self.refresh_button = ctk.CTkButton(bar, text="Refresh", width=100, command=self.refresh)
+        self.refresh_button = ctk.CTkButton(bar, text="Re-test devices", width=126, command=self.refresh)
         self.refresh_button.pack(side="left")
-        self.scan_button = ctk.CTkButton(bar, text="Scan" if app.is_admin else "Scan (Admin)", width=100,
-                                         state="normal" if app.is_admin else "disabled", **theme.PRIMARY,
-                                         command=lambda: self.refresh(scan=True))
+        self.scan_state = "normal" if app.is_admin or not app.user else "disabled"
+        self.scan_button = (ctk.CTkButton(bar, text="Scan network", width=146, height=40, corner_radius=20,
+                                          state=self.scan_state, **theme.PRIMARY, command=self.scan) if app.user else
+                            theme.locked_button(bar, "Scan network", app.ask_scan, width=146))
         self.scan_button.pack(side="left", padx=8)
         self.filter = ctk.CTkSegmentedButton(bar, values=FILTERS, command=lambda mode: self._redraw())
         self.filter.set("All")
@@ -57,7 +58,8 @@ class MapView(ctk.CTkFrame):
             ("Ping", lambda ip: app.show("Ping", ip=ip)),
             ("Continuous ping", lambda ip: app.show("Ping", ip=ip, continuous=True)),
             ("Traceroute", lambda ip: app.show("Traceroute", ip=ip)),
-            ("Check ports" if app.is_admin else "Check ports (Admin)", self._check_ports if app.is_admin else None),
+            ("Check ports" if app.is_admin else "Check ports (Admin)",
+             self._check_ports if app.is_admin or not app.user else None),
         ])
         self.canvas.pack(fill="both", expand=True, padx=theme.PAD, pady=8)
 
@@ -66,9 +68,14 @@ class MapView(ctk.CTkFrame):
         self.app.open_device(ip)
         self.app.panel.check_ports()
 
-    def on_show(self):
-        if self.refresh_button.cget("state") == "normal":   # not while a Refresh or Scan runs: its result will redraw
+    def on_show(self, scan=False):
+        if scan:
+            self.scan()
+        elif self.refresh_button.cget("state") == "normal":   # its result will redraw
             self._load(None, "")
+
+    def scan(self):
+        self.refresh(scan=True)
 
     def refresh(self, scan=False):
         """Ping every known device (Refresh), or scan for devices first (Scan, Admin), then redraw."""
@@ -99,7 +106,7 @@ class MapView(ctk.CTkFrame):
 
     def _ready(self):
         self.refresh_button.configure(state="normal")
-        self.scan_button.configure(state="normal" if self.app.is_admin else "disabled")
+        self.scan_button.configure(state=self.scan_state)
 
     def _show_error(self, error):
         if self.winfo_exists():

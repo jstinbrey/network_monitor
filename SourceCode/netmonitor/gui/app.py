@@ -22,7 +22,7 @@ from netmonitor.gui.worker import run_async
 
 VIEWS = [("Dashboard", DashboardView), ("Devices", DevicesView), ("Map", MapView), ("Ping", PingView),
          ("Traceroute", TracerouteView), ("Connection", ConnectionView), ("Statistics", StatisticsView),
-         ("Reports", ReportsView), ("Security", SecurityView)]   # sidebar order; the first one opens at start and after sign-in
+         ("Reports", ReportsView), ("Security", SecurityView)]   # sidebar order
 ADMIN_VIEWS = [("Admin", AdminView)]   # built only for administrators, so a User's window never contains them
 # Sidebar groups: (label, [(view, icon)]). "Manage" is shown only to administrators.
 NAV_GROUPS = [("Monitor", [("Dashboard", "dashboard"), ("Devices", "devices"), ("Map", "map")]),
@@ -46,22 +46,18 @@ class App(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
         self.protocol("WM_DELETE_WINDOW", self.close)
 
-        self.user = self.main = self.panel = self.current = None
-        self.login = LoginView(self, on_success=self.start, on_cancel=self.cancel_login)
-        self.login.grid(row=0, column=0, sticky="nsew")
-        self.login.grid_remove()
+        self.user = self.main = self.panel = self.current = self.login = None
         self.start(None)                              # signing in is optional: everyone starts as a guest
 
     @property
     def is_admin(self):
         return bool(self.user and self.user.is_admin)
 
-    def start(self, user):
+    def start(self, user, view="Dashboard", **view_options):
         """Build the sidebar and only the views this user may open. user is None for a guest."""
         if self.main is not None:                     # replacing the guest window after a sign-in
             self._close_main()
         self.user, self.panel = user, None
-        self.login.grid_remove()
         self.main = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
         self.main.grid(row=0, column=0, sticky="nsew")
         self.main.grid_columnconfigure(1, weight=1)   # the view stretches, the sidebar does not
@@ -77,7 +73,7 @@ class App(ctk.CTk):
         self.alert_bar = AlertBar(self.main, on_view=self.open_device, on_dismiss=self._dismiss)
         self.alert_bar.grid(row=0, column=1, sticky="ew", padx=theme.PAD, pady=(12, 0))
         self.alert_bar.grid_remove()                  # hidden until the first alert
-        self.show(VIEWS[0][0])
+        self.show(view, **view_options)
         self._bw_ticks = 0
         self._sample_bandwidth()
         run_async(services.wifi_link, on_done=self._show_network)   # netsh takes ~0.3 s: off the UI thread
@@ -97,13 +93,13 @@ class App(ctk.CTk):
             account.pack(fill="x", padx=8)
             ctk.CTkLabel(account, text=user.username[:1].upper(), text_color=theme.LIME, fg_color=theme.INK,
                          corner_radius=14, width=28, height=28, font=theme.CAPTION_FONT).pack(side="left", padx=6, pady=6)
-            ctk.CTkButton(account, text="", image=theme.icon("log-out", theme.TEXT_2, 16), width=28, height=28,
+            theme.ActionButton(account, text="", image=theme.icon("log-out", theme.TEXT_2, 16), width=28, height=28,
                           command=self.sign_out, **theme.GHOST).pack(side="right", padx=6)
             ctk.CTkLabel(account, text=f"{user.username}\n{'Administrator' if user.is_admin else 'User'}",
                          justify="left", anchor="w", font=theme.CAPTION_FONT).pack(side="left", fill="x", expand=True)
         else:      # signing in is optional: a guest sees this button at the upper left
-            ctk.CTkButton(sidebar, text="Admin sign in", image=theme.icon("lock", theme.TEXT, 16), compound="left",
-                          height=36, command=self.ask_login).pack(fill="x", padx=8)
+            theme.ActionButton(sidebar, text="Admin sign in", image=theme.icon("lock", theme.TEXT, 16), compound="left",
+                               height=36, command=self.ask_login).pack(fill="x", padx=8)
         # The bottom, packed bottom-up: the Wi-Fi card, and above it the watch state.
         network = ctk.CTkFrame(sidebar, fg_color=theme.SUBTLE, corner_radius=12)
         network.pack(side="bottom", fill="x", padx=8, pady=(4, 8))
@@ -112,8 +108,7 @@ class App(ctk.CTk):
         self.ssid.pack(fill="x", padx=12, pady=(8, 0))
         self.rates = ctk.CTkLabel(network, text="↓ –   ↑ –", anchor="w", font=theme.MONO_FONT)
         self.rates.pack(fill="x", padx=12, pady=(0, 8))
-        self.watch_label = ctk.CTkLabel(sidebar, text="", text_color=theme.GREEN, font=theme.CAPTION_FONT)
-        self.watch_label.pack(side="bottom")
+        self.watch_label = ctk.CTkLabel(sidebar, text="", text_color=theme.GREEN, font=theme.CAPTION_FONT, height=16)
         return sidebar
 
     def _nav(self, sidebar):
@@ -124,12 +119,12 @@ class App(ctk.CTk):
             if not items:
                 continue
             ctk.CTkLabel(sidebar, text=group, text_color=theme.MUTED, font=theme.CAPTION_FONT, anchor="w",
-                         height=20).pack(fill="x", padx=20, pady=(10, 2))
+                         height=18).pack(fill="x", padx=20, pady=(4, 1))
             for name, icon in items:
-                buttons[name] = ctk.CTkButton(sidebar, text=name, image=theme.icon(icon, theme.TEXT_2), compound="left",
+                buttons[name] = theme.ActionButton(sidebar, text=name, image=theme.icon(icon, theme.TEXT_2), compound="left",
                                               anchor="w", height=34, corner_radius=12, font=theme.BODY_FONT,
                                               command=lambda n=name: self.show(n), **theme.GHOST)
-                buttons[name].pack(fill="x", padx=8, pady=1)
+                buttons[name].pack(fill="x", padx=8)
         return buttons
 
     def show(self, name, **kwargs):
@@ -164,6 +159,14 @@ class App(ctk.CTk):
 
     def add_watch_switch(self, parent):
         """A Watch switch in a view's toolbar, packed on the right. All of them show the same state."""
+        if not self.user:
+            button = theme.locked_button(parent, "Watch", lambda: self.ask_login(
+                "Sign in to start watch mode", "Watch checks the local network for changes.",
+                "Sign in and start", lambda: self.set_watch(True)), width=100)
+            button.pack(side="right")
+            return button
+        if not self.is_admin:
+            return None
         switch = ctk.CTkSwitch(parent, text="Watch", command=lambda: self.set_watch(bool(switch.get())))
         switch.pack(side="right")
         self.watch_switches.append(switch)
@@ -176,11 +179,12 @@ class App(ctk.CTk):
         if self._watch_job:
             self.after_cancel(self._watch_job)
             self._watch_job = None
-        self.watch_label.configure(text="")
+        self.watch_label.pack_forget()
         if on:
             services.start_watch()
             self._watch_minutes = services.settings()["watch_min"]   # one small database read
             self.watch_label.configure(text=f"Watch ●  every {self._watch_minutes:g} min")
+            self.watch_label.pack(side="bottom", before=self.buttons["Dashboard"])
             self._watch_tick()                                       # the first check runs now
 
     def _watch_tick(self):
@@ -213,16 +217,34 @@ class App(ctk.CTk):
         if self.panel is None:
             self.panel = DevicePanel(self.main, self)
         self.panel.show(ip)
+        return self.panel
 
-    def ask_login(self):
-        """Cover the guest window with the sign-in screen. The guest views keep running behind it."""
-        self.main.grid_remove()
-        self.login.reset()
-        self.login.grid()
+    def ask_login(self, title="Sign in as administrator", description=None, submit="Sign in", action=None, **view_options):
+        """Keep the current view visible and run a pending action only after administrator sign-in."""
+        if self.login:
+            self.login.lift()
+            return
+        view = self.current
+
+        def signed_in(user):
+            self.cancel_login()
+            self.start(user, view, **view_options)
+            if action:
+                action()
+
+        self.login = LoginView(self, title, description, submit, signed_in, self.cancel_login,
+                               admin_only=bool(action or view_options))
+
+    def ask_scan(self):
+        """Sign in and scan from the view where the guest pressed Scan network."""
+        self.ask_login("Sign in to scan the network",
+                       "Scanning needs an administrator. The scan starts as soon as you sign in.",
+                       "Sign in and scan", scan=True)
 
     def cancel_login(self):
-        self.login.grid_remove()
-        self.main.grid()
+        if self.login:
+            self.login.destroy()
+            self.login = None
 
     def _close_main(self):
         """Stop the timers and anything still running, then throw the views away."""

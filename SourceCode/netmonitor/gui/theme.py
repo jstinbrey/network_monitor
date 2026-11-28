@@ -7,6 +7,7 @@ ttk tables and the map canvas cannot read that file, so they use the plain hex v
 """
 import functools
 from pathlib import Path
+import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
@@ -38,6 +39,47 @@ PAD = 16
 PRIMARY = dict(fg_color=INK, hover_color=INK_HOVER, text_color=SURFACE, border_width=0)
 DANGER = dict(fg_color=SURFACE, hover_color=RED_SOFT, text_color=RED, border_color=RED, border_width=1)
 GHOST = dict(fg_color="transparent", hover_color=SUBTLE, text_color=TEXT, border_width=0)
+
+
+class ActionButton(ctk.CTkButton):
+    """A button that participates in Tk's keyboard focus and activation."""
+
+    def __init__(self, parent, **kwargs):
+        super().__init__(parent, **kwargs)
+        # The CustomTkinter button is a Tk frame with its mouse targets inside it.
+        tk.Frame.configure(self, takefocus=lambda _: int(self.cget("state") != "disabled"))
+        tk.Frame.bind(self, "<Return>", self._activate)
+        tk.Frame.bind(self, "<space>", self._activate)
+        tk.Frame.bind(self, "<FocusIn>", self._focus_in)
+        tk.Frame.bind(self, "<FocusOut>", self._focus_out)
+
+    def _activate(self, event):
+        self.invoke()
+        return "break"
+
+    def _focus_in(self, event):
+        self._resting_border = self.cget("border_width"), self.cget("border_color")
+        self.configure(border_width=2, border_color=SURFACE if self.cget("fg_color") == INK else INK)
+
+    def _focus_out(self, event):
+        if hasattr(self, "_resting_border"):
+            width, color = self._resting_border
+            self.configure(border_width=width, border_color=color)
+            del self._resting_border
+
+
+def locked_button(parent, text, command, **kwargs):
+    """A clickable admin action for guests, distinct from a disabled control."""
+    return ActionButton(parent, text=text, command=command, image=icon("lock", MUTED), compound="left",
+                        height=40, corner_radius=20, fg_color=SUBTLE, hover_color=BORDER,
+                        border_color=BORDER, text_color=MUTED, font=BODY_FONT, **kwargs)
+
+
+def icon_badge(parent, name, size, background, foreground, icon_size):
+    """Center an icon in a fixed-size circle."""
+    badge = ctk.CTkFrame(parent, width=size, height=size, corner_radius=size // 2, fg_color=background)
+    ctk.CTkLabel(badge, text="", image=icon(name, foreground, icon_size)).place(relx=0.5, rely=0.5, anchor="center")
+    return badge
 
 # --- Fonts: setup() swaps in Segoe UI / Consolas if the bundled or system fonts are missing ---------
 SANS, SANS_MEDIUM, SANS_SEMIBOLD, MONO = "Plus Jakarta Sans", "Plus Jakarta Sans Medium", "Plus Jakarta Sans SemiBold", "Cascadia Mono"

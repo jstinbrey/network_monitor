@@ -28,6 +28,23 @@ def test_first_scan_is_the_baseline_and_new_devices_are_flagged(tmp_path):
     assert all(d.known for d in store.get_devices(NET, db))
 
 
+def test_undo_confirmation_stays_on_the_original_network(tmp_path):
+    db = tmp_path / "t.db"
+    other_network = "10.0.0.0/24"
+    router, new_device = device("192.168.1.1", "aa"), device("192.168.1.50", "zz")
+    store.save_scan([router], NET, db)
+    store.save_scan([router, new_device], NET, db)
+    store.save_scan([device("10.0.0.50", "zz")], other_network, db)
+
+    assert store.mark_known("zz", NET, db)
+    assert not store.mark_known("zz", NET, db)
+    store.unmark_known("zz", NET, db)
+    store.save_scan([router, new_device], NET, db)
+
+    assert [d.known for d in store.get_devices(NET, db)] == [True, False]
+    assert store.get_devices(other_network, db)[0].known
+
+
 def test_rescan_keeps_first_seen_and_devices_that_left(tmp_path):
     db = tmp_path / "t.db"
     store.save_scan([device("192.168.1.1", "aa"), device("192.168.1.7", "cc")], NET, db)

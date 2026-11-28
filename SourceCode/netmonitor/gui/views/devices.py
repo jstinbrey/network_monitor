@@ -19,18 +19,18 @@ class DevicesView(ctk.CTkFrame):
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", padx=theme.PAD, pady=12)
-        # Only an Admin may scan. A User sees the button greyed out, so the feature is still visible.
-        self.scan_state = "normal" if app.is_admin else "disabled"   # the button's state while no scan runs
-        self.scan_button = ctk.CTkButton(bar, text="Scan network" if app.is_admin else "Scan network (Admin)",
-                                         command=self.scan, state=self.scan_state, **theme.PRIMARY)
+        self.scan_state = "normal" if app.is_admin or not app.user else "disabled"
+        self.scan_button = (ctk.CTkButton(bar, text="Scan network", command=self.scan, height=40,
+                                          corner_radius=20, state=self.scan_state, **theme.PRIMARY) if app.user else
+                            theme.locked_button(bar, "Scan network", app.ask_scan))
         self.scan_button.pack(side="left")
         self.progress = ctk.CTkProgressBar(bar, width=160)
         self.progress.set(0)
         self.progress.pack(side="left", padx=12)
         self.status = ctk.CTkLabel(bar, text="No devices yet. Run a scan.", text_color=theme.MUTED, anchor="w")
         ctk.CTkButton(bar, text="Ping selected", command=self.ping_selected).pack(side="right")
-        if app.is_admin:                               # the same Watch switch as on the Dashboard
-            app.add_watch_switch(bar).pack_configure(padx=(0, 12))
+        if watch := app.add_watch_switch(bar):
+            watch.pack_configure(padx=(0, 12))
         self.status.pack(side="left", fill="x", expand=True)   # packed last, so the buttons keep their room
 
         self.table = HostTable(self, [("ip", "IP Address", 125), ("hostname", "Hostname", 190),
@@ -62,10 +62,12 @@ class DevicesView(ctk.CTkFrame):
         self._show_error(error)
         self.scan_button.configure(state=self.scan_state)
 
-    def on_show(self):
+    def on_show(self, scan=False):
         """Called each time this view is opened: refresh the network details."""
         run_async(services.network_info, on_done=self._show_info, on_error=self._show_error)
-        if self.scan_button.cget("state") == self.scan_state:   # not while a scan is running
+        if scan:
+            self.scan()
+        elif self.scan_button.cget("state") == self.scan_state:   # not while a scan is running
             run_async(services.devices, on_done=self._show_devices, on_error=self._show_error)
 
     def _show_info(self, info):

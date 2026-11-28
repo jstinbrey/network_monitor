@@ -79,10 +79,18 @@ def get_devices(network: str, path=None) -> list[Device]:
 
 
 def mark_known(mac: str, network: str, path=None):
-    """Add a MAC to the network's baseline, after the user confirms the device belongs."""
+    """Add a MAC to the baseline and report whether it was newly added."""
     with closing(_connect(path)) as db, db:
-        db.execute("INSERT OR IGNORE INTO known_macs VALUES (?, ?)", (network, mac))
+        inserted = db.execute("INSERT OR IGNORE INTO known_macs VALUES (?, ?)", (network, mac)).rowcount
         db.execute("UPDATE devices SET known = 1 WHERE network = ? AND mac = ?", (network, mac))
+        return bool(inserted)
+
+
+def unmark_known(mac: str, network: str, path=None):
+    """Undo a device confirmation on the network where it was made."""
+    with closing(_connect(path)) as db, db:
+        db.execute("DELETE FROM known_macs WHERE network = ? AND mac = ?", (network, mac))
+        db.execute("UPDATE devices SET known = 0 WHERE network = ? AND mac = ?", (network, mac))
 
 
 def set_alias(ip: str, alias: str, network: str, path=None):

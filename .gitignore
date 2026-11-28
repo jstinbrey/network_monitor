@@ -20,3 +20,6 @@ VideoDemo/*
 
 # UI inspiration images for the redesign; reference only, not part of the project
 ui inspo/
+
+# Handoff notes for the next model; local only
+HANDOFF.md

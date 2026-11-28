@@ -344,12 +344,26 @@ def recommendations():
 
 def mark_known(ip):
     """Feature 5: the user confirms a new device belongs; returns the fresh recommendations."""
+    mark_known_change(ip)
+    return recommendations()
+
+
+def mark_known_change(ip):
+    """Confirm a device and return the network and MAC if the baseline changed."""
     require_admin()
     network, devices = _current()
     for device in devices:
         if device.ip == ip and device.mac:
-            store.mark_known(device.mac, network)
-    return recommendations()
+            if store.mark_known(device.mac, network):
+                return network, device.mac
+            return None
+
+
+def undo_mark_known(change):
+    """Undo a confirmation using its original network and MAC."""
+    require_admin()
+    network, mac = change
+    store.unmark_known(mac, network)
 
 
 def scan_and_refresh(on_progress=None):
@@ -563,12 +577,16 @@ def create_first_admin(username, password, confirm):
     return _user
 
 
-def login(username, password):
+def login_lock_seconds():
+    """Whole seconds until another sign-in attempt is allowed."""
+    return max(0, math.ceil(_locked_until - time.monotonic()))
+
+
+def login(username, password, admin_only=False):
     """Sign in. The same message for an unknown name and a wrong password, so neither is revealed."""
     global _user, _failures, _locked_until
-    wait = _locked_until - time.monotonic()
-    if wait > 0:
-        raise ValueError(f"Too many attempts. Wait {math.ceil(wait)} s.")
+    if wait := login_lock_seconds():
+        raise ValueError(f"Too many attempts. Wait {wait} s.")
     row = store.get_user(username.strip().lower())
     # An unknown name is still hashed, so it takes as long as a wrong password and timing reveals nothing.
     salt, digest = (row["salt"], row["hash"]) if row else (bytes(16), b"")
@@ -578,7 +596,10 @@ def login(username, password):
             _failures, _locked_until = 0, time.monotonic() + config.LOGIN_LOCK_S
         raise ValueError("Wrong username or password.")
     _failures = 0
-    _user = models.User(row["username"], row["role"])
+    user = models.User(row["username"], row["role"])
+    if admin_only and not user.is_admin:
+        raise PermissionError("Sign in with an administrator account to continue.")
+    _user = user
     return _user
 
 

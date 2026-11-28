@@ -9,9 +9,9 @@ BACKGROUND, TEXT = theme.SURFACE, theme.TEXT_2
 
 
 class LatencyChart(ctk.CTkFrame):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.figure = Figure(figsize=(5, 2.4), dpi=100, facecolor=BACKGROUND)
+    def __init__(self, parent, width=5, height=2.4):
+        super().__init__(parent, fg_color=BACKGROUND)
+        self.figure = Figure(figsize=(width, height), dpi=100, facecolor=BACKGROUND)
         self.axes = self.figure.add_subplot(111)
         self.canvas = FigureCanvasTkAgg(self.figure, master=self)
         self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=4, pady=4)
@@ -19,13 +19,20 @@ class LatencyChart(ctk.CTkFrame):
         self.canvas.mpl_connect("pick_event", self._picked)   # connected once; plot() only swaps the bars
         self.plot([], [], "Reply times")
 
-    def plot(self, labels, values, title, on_pick=None, unit="ms"):
+    def plot(self, labels, values, title, on_pick=None, unit="ms", distinct_labels=False):
         """Redraw the chart with one bar per label; values are in `unit` (the y-axis label).
 
         on_pick: when given, clicking a bar calls on_pick(index of that bar in labels).
+        distinct_labels: reserve separate positions even for repeated device names.
         """
         self.axes.clear()
-        self._bars = list(self.axes.bar(labels, values, color=theme.INK, picker=on_pick is not None))
+        positions = range(len(labels)) if distinct_labels else labels
+        self._bars = list(self.axes.bar(positions, values, width=0.35 if distinct_labels else 0.8,
+                                       color=theme.INK, picker=on_pick is not None))
+        if distinct_labels and labels:
+            self.axes.set_xticks(positions, labels, rotation=90 if len(labels) > 7 else 30, ha="right", fontsize=8)
+            self.axes.set_axisbelow(True)
+            self.axes.grid(axis="y", color=theme.BORDER)
         self._on_pick = on_pick
         self.axes.set_title(title, color=TEXT)
         self.axes.set_ylabel(unit, color=TEXT)
